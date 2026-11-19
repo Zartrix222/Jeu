@@ -100,6 +100,7 @@ namespace Industria.Input
                 case GameAction.Scanner: return kb.cKey;
                 case GameAction.QuickSave: return kb.f5Key;
                 case GameAction.QuickLoad: return kb.f9Key;
+                case GameAction.ToggleStats: return kb.f3Key;
                 case GameAction.Pause: return kb.escapeKey;
                 case GameAction.Hotbar1: return kb.digit1Key;
                 case GameAction.Hotbar2: return kb.digit2Key;

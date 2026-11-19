@@ -140,6 +140,43 @@ namespace Industria.Rendering
             mat.renderQueue = (int)RenderQueue.Transparent;
         }
 
+        /// <summary>Alpha blended unlit material for particles (colour comes from the particle).</summary>
+        public Material Particle()
+        {
+            const string key = "particle";
+            if (_cache.TryGetValue(key, out var mat)) return mat;
+            var template = Resources.Load<Material>("Materials/IndustriaParticle");
+            if (template != null) mat = new Material(template);
+            else
+            {
+                var shader = Shader.Find(IsUrp ? "Universal Render Pipeline/Particles/Unlit" : "Particles/Standard Unlit");
+                mat = shader != null ? new Material(shader) : new Material(_transparentTemplate);
+                MakeTransparent(mat, IsUrp);
+            }
+            mat.name = key;
+            var dot = ProceduralTextures.SoftDot();
+            mat.SetTexture(BaseMapId, dot);
+            mat.SetTexture(MainTexId, dot);
+            SetColor(mat, Color.white);
+            _cache[key] = mat;
+            return mat;
+        }
+
+        /// <summary>Glossy transparent water surface.</summary>
+        public Material Water()
+        {
+            const string key = "water";
+            if (_cache.TryGetValue(key, out var mat)) return mat;
+            mat = new Material(_transparentTemplate) { name = key };
+            mat.DisableKeyword("_EMISSION");
+            SetColor(mat, new Color(0.07f, 0.24f, 0.3f, 0.78f));
+            mat.SetFloat(MetallicId, 0f);
+            mat.SetFloat(SmoothnessId, 0.94f);
+            mat.SetFloat(GlossinessId, 0.94f);
+            _cache[key] = mat;
+            return mat;
+        }
+
         public Material TerrainMaterial()
         {
             var fromResources = Resources.Load<Material>("Materials/IndustriaTerrain");

@@ -20,6 +20,10 @@ namespace Industria.World
         public Vector2 VolcanoCenter => new Vector2(Size * 0.24f, Size * 0.22f);
         public float VolcanoRadius => 190f;
         public float DesertStartX => Size * 0.66f;
+        public Vector2 LakeCenter => Center + new Vector2(-150f, 130f);
+        public float LakeRadius => 70f;
+        public const float WaterLevel01 = 0.075f;
+        public static float WaterLevel => WaterLevel01 * MaxHeight;
 
         public WorldShape(int seed)
         {
@@ -67,6 +71,16 @@ namespace Industria.World
                 h = Mathf.Max(h, 0.08f + cone - crater + hills * 0.02f);
             }
 
+            // Lake basin: smooth bowl whose rim rises a few metres above the water.
+            float ld = Vector2.Distance(p, LakeCenter);
+            if (ld < LakeRadius * 1.4f)
+            {
+                float t = Mathf.Clamp01(ld / (LakeRadius * 1.15f));
+                float bowl = WaterLevel01 - 0.035f + 0.05f * t * t + hills * 0.006f;
+                float blend = 1f - SmoothStep(LakeRadius, LakeRadius * 1.4f, ld);
+                h = Mathf.Lerp(h, bowl, blend);
+            }
+
             // Spawn valley: flat, safe area for the first factory.
             float flatten = 1f - SmoothStep(45f, 110f, distCenter);
             h = Mathf.Lerp(h, 0.085f + hills * 0.012f, flatten);
@@ -77,6 +91,13 @@ namespace Industria.World
         {
             float edge = DesertStartX + (Mathf.PerlinNoise(z * 0.006f + _oz, _ox) - 0.5f) * 120f;
             return SmoothStep(edge - 40f, edge + 40f, x);
+        }
+
+        /// <summary>1 inside the lake, fading to 0 past its shore.</summary>
+        public float LakeFactor(float x, float z)
+        {
+            float d = Vector2.Distance(new Vector2(x, z), LakeCenter);
+            return 1f - SmoothStep(LakeRadius * 0.9f, LakeRadius * 1.25f, d);
         }
 
         public float VolcanicFactor(float x, float z)

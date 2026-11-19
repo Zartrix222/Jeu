@@ -46,9 +46,12 @@ namespace Industria.Player
             return rig;
         }
 
+        private PlayerController _targetController;
+
         public void SetTarget(Transform target, float yaw)
         {
             _target = target;
+            _targetController = target != null ? target.GetComponent<PlayerController>() : null;
             Yaw = yaw;
             Pitch = 15f;
             SnapToTarget();
@@ -80,6 +83,10 @@ namespace Industria.Player
                 if (Mathf.Abs(zoom) > 0.01f && !ZoomLocked) _distance = Mathf.Clamp(_distance - zoom * 0.8f, MinDistance, MaxDistance);
             }
             Place(Time.deltaTime);
+
+            // Subtle speed feel when sprinting.
+            float targetFov = _targetController != null && _targetController.HorizontalSpeed > 6f ? 68f : 62f;
+            Camera.fieldOfView = Mathf.Lerp(Camera.fieldOfView, targetFov, 1f - Mathf.Exp(-5f * Time.deltaTime));
         }
 
         /// <summary>Set by build mode, which uses the mouse wheel for rotation.</summary>

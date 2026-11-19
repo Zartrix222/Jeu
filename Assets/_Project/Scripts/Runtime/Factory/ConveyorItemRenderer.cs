@@ -31,7 +31,6 @@ namespace Industria.Factory
         public void Render(IReadOnlyList<ConveyorView> belts, float timeSinceTick, Vector3 cameraPosition)
         {
             foreach (var list in _batches.Values) list.Clear();
-            var scale = Vector3.one * ItemSize;
             float maxSqr = MaxRenderDistance * MaxRenderDistance;
 
             for (int b = 0; b < belts.Count; b++)
@@ -45,7 +44,7 @@ namespace Industria.Factory
                 var dir = view.End - view.Start;
                 float length = belt.Length;
                 var rot = Quaternion.LookRotation(dir, Vector3.up);
-                var lift = rot * new Vector3(0f, ItemSize * 0.5f, 0f);
+                var lift = rot * new Vector3(0f, ItemSize * 0.4f, 0f);
                 var items = belt.Items;
                 for (int i = 0; i < items.Count; i++)
                 {
@@ -57,16 +56,16 @@ namespace Industria.Factory
                         pos = Mathf.Min(pos + belt.Speed * timeSinceTick, Mathf.Min(limit, length));
                     }
                     var world = view.Start + dir * (pos / length) + lift;
-                    GetBatch(it.ItemId).Add(Matrix4x4.TRS(world, rot, scale));
+                    GetBatch(it.ItemId).Add(Matrix4x4.TRS(world, rot, ScaleFor(it.ItemId)));
                 }
             }
 
-            var mesh = MeshLibrary.Cube;
             foreach (var pair in _batches)
             {
                 var list = pair.Value;
                 if (list.Count == 0) continue;
                 var mat = GetMaterial(pair.Key);
+                var mesh = IsIngot(pair.Key) ? MeshLibrary.Cube : MeshLibrary.Rock(pair.Key.Length);
                 for (int start = 0; start < list.Count; start += BatchSize)
                 {
                     int count = Mathf.Min(BatchSize, list.Count - start);
@@ -75,6 +74,12 @@ namespace Industria.Factory
                 }
             }
         }
+
+        private bool IsIngot(string itemId) => _content.Items.TryGet(itemId, out var def) && def.category == "material";
+
+        private Vector3 ScaleFor(string itemId) => IsIngot(itemId)
+            ? new Vector3(ItemSize * 0.8f, ItemSize * 0.45f, ItemSize * 1.3f)   // bar
+            : new Vector3(ItemSize * 1.1f, ItemSize * 0.9f, ItemSize * 1.1f);  // ore chunk
 
         private List<Matrix4x4> GetBatch(string itemId)
         {

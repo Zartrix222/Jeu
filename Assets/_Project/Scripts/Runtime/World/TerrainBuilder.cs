@@ -48,10 +48,10 @@ namespace Industria.World
         {
             return new[]
             {
-                Layer("Herbe", ProceduralTextures.Noise("grass", new Color(0.20f, 0.30f, 0.14f), new Color(0.33f, 0.42f, 0.2f), 6f, 128, 1), 6f),
-                Layer("Roche", ProceduralTextures.Noise("rock", new Color(0.30f, 0.29f, 0.28f), new Color(0.52f, 0.5f, 0.47f), 5f, 128, 2), 10f),
-                Layer("Sable", ProceduralTextures.Noise("sand", new Color(0.70f, 0.58f, 0.40f), new Color(0.84f, 0.73f, 0.53f), 7f, 128, 3), 8f),
-                Layer("Cendre", ProceduralTextures.Noise("ash", new Color(0.08f, 0.07f, 0.07f), new Color(0.25f, 0.18f, 0.15f), 6f, 128, 4), 7f),
+                Layer("Herbe", ProceduralTextures.Noise("grass", new Color(0.17f, 0.27f, 0.12f), new Color(0.36f, 0.45f, 0.21f), 6f, 256, 1), 7f),
+                Layer("Roche", ProceduralTextures.Noise("rock", new Color(0.27f, 0.26f, 0.26f), new Color(0.55f, 0.53f, 0.5f), 5f, 256, 2), 12f),
+                Layer("Sable", ProceduralTextures.Noise("sand", new Color(0.68f, 0.55f, 0.38f), new Color(0.86f, 0.75f, 0.55f), 7f, 256, 3), 9f),
+                Layer("Cendre", ProceduralTextures.Noise("ash", new Color(0.06f, 0.05f, 0.05f), new Color(0.3f, 0.2f, 0.16f), 6f, 256, 4), 8f),
             };
         }
 
@@ -81,7 +81,8 @@ namespace Industria.World
                     float slope = data.GetSteepness(nx, nz);
 
                     float rock = Mathf.Clamp01((slope - 24f) / 14f) + Mathf.Clamp01((h - 0.34f) * 6f);
-                    float sand = shape.DesertFactor(wx, wz);
+                    float shore = shape.LakeFactor(wx, wz) * Mathf.Clamp01(1f - (h - WorldShape.WaterLevel01) * 60f);
+                    float sand = Mathf.Max(shape.DesertFactor(wx, wz), shore);
                     float ash = shape.VolcanicFactor(wx, wz);
                     float grass = 1f;
 

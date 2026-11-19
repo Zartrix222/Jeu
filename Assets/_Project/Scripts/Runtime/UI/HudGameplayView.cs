@@ -75,9 +75,9 @@ namespace Industria.UI
 
         private void DrawTopLeft()
         {
-            var r = new Rect(16f, 16f, 360f, 150f);
+            var r = new Rect(16f, 16f, 520f, 150f);
             var era = _root.Content.Eras.Count > 0 ? _root.Content.Eras[0] : null;
-            GUI.Label(new Rect(r.x, r.y, r.width, 26f), $"{GameInfo.Planet}  ·  Ère {(era != null ? era.index : 1)} — {(era != null ? era.displayName : "Survie")}", UIStyles.Header);
+            GUI.Label(new Rect(r.x, r.y, r.width, 26f), $"{GameInfo.Planet}  ·  Ère {(era != null ? era.index : 1)} — {(era != null ? era.displayName : "Survie")}  ·  {_root.DayNight.ClockText}", UIStyles.Header);
 
             var tracker = _root.Objectives;
             var current = tracker.Current;
@@ -93,7 +93,7 @@ namespace Industria.UI
                 GUI.Label(new Rect(r.x, y, r.width, 40f), UIStyles.Colorize("Tous les objectifs de l'ère accomplis !", UIStyles.Good), UIStyles.Label);
             }
             if (!_root.Input.Touch.Enabled)
-                GUI.Label(new Rect(r.x, y + 84f, r.width + 200f, 22f), "[Tab] Inventaire  [C] Scanner  [B] Construire  [X] Démolir  [F5] Sauver  [Échap] Menu", UIStyles.Small);
+                GUI.Label(new Rect(r.x, y + 84f, r.width + 200f, 22f), "[Tab] Inventaire  [C] Scanner  [B] Construire  [X] Démolir  [F5] Sauver  [F3] Perf.  [Échap] Menu", UIStyles.Small);
         }
 
         private void DrawHotbar(float w, float h, bool interactive)

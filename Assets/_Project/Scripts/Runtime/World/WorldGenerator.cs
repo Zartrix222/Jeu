@@ -32,6 +32,7 @@ namespace Industria.World
             Shape = new WorldShape(seed);
             _root = new GameObject("World (NEXUS-01)");
             Terrain = TerrainBuilder.Build(Shape, _materials, _root.transform);
+            WaterBuilder.Build(Shape, _materials, _root.transform);
             Nodes.AddRange(ResourceNodeSpawner.Spawn(seed, Shape, Terrain, _content, _materials, _root.transform));
             VegetationSpawner.Spawn(seed, Shape, Terrain, _materials, _root.transform);
             Debug.Log($"[World] Monde généré (graine {seed}) en {sw.ElapsedMilliseconds} ms, {Nodes.Count} gisements.");

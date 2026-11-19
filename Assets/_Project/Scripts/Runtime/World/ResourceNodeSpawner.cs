@@ -52,6 +52,7 @@ namespace Industria.World
                 if (p.x < 30f || p.y < 30f || p.x > WorldShape.Size - 30f || p.y > WorldShape.Size - 30f) continue;
                 float slope = terrain.terrainData.GetSteepness(p.x / WorldShape.Size, p.y / WorldShape.Size);
                 if (slope > 22f) continue;
+                if (shape.LakeFactor(p.x, p.y) > 0.05f) continue;
                 bool tooClose = false;
                 foreach (var other in list) if (Vector2.Distance(other.Position, p) < 35f) { tooClose = true; break; }
                 if (tooClose) continue;

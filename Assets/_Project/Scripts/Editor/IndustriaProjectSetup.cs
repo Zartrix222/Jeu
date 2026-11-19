@@ -35,12 +35,84 @@ namespace Industria.EditorTools
 
         private static void AutoSetup()
         {
+            // Pressing Play from any scene always starts the game in Main.
+            var mainScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
+            if (mainScene != null) EditorSceneManager.playModeStartScene = mainScene;
+
             if (SessionState.GetBool(SessionKey, false)) return;
             SessionState.SetBool(SessionKey, true);
-            if (File.Exists(ScenePath) && File.Exists(MaterialsPath + "/IndustriaLit.mat")) return;
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-            Debug.Log("[Industria] Première ouverture : configuration automatique du projet…");
+
+            if (!File.Exists(ScenePath) || !File.Exists(MaterialsPath + "/IndustriaLit.mat"))
+            {
+                Debug.Log("[Industria] Première ouverture : configuration automatique du projet…");
+                Run();
+            }
+
+            // Open Main instead of an empty "Untitled" scene.
+            var active = EditorSceneManager.GetActiveScene();
+            if (string.IsNullOrEmpty(active.path) && !active.isDirty && File.Exists(ScenePath))
+                EditorSceneManager.OpenScene(ScenePath);
+        }
+
+        [MenuItem("Industria/▶ Jouer", priority = -100)]
+        public static void Play()
+        {
+            if (!File.Exists(MaterialsPath + "/IndustriaLit.mat")) Run();
+            var mainScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
+            if (mainScene != null) EditorSceneManager.playModeStartScene = mainScene;
+            EditorApplication.isPlaying = true;
+        }
+
+        [MenuItem("Industria/Diagnostic", priority = 10)]
+        public static void Diagnostic()
+        {
+            var sb = new System.Text.StringBuilder("[Industria] Diagnostic du projet\n");
+            void Line(bool ok, string text) => sb.AppendLine((ok ? "  OK      " : "  PROBLÈME ") + text);
+            Line(true, "Unity " + Application.unityVersion);
+            var rp = GraphicsSettings.defaultRenderPipeline;
+            Line(rp != null, "Pipeline de rendu : " + (rp != null ? rp.name : "Built-in (URP recommandé : Industria > Configurer le projet)"));
+            Line(File.Exists(ScenePath), "Scène principale : " + ScenePath);
+            bool inBuild = false;
+            foreach (var sc in EditorBuildSettings.scenes) if (sc.path == ScenePath && sc.enabled) inBuild = true;
+            Line(inBuild, "Scène dans les Build Settings");
+            foreach (var m in new[] { "IndustriaLit", "IndustriaLitEmissive", "IndustriaGhost", "IndustriaTerrain", "IndustriaSky", "IndustriaParticle" })
+                Line(File.Exists($"{MaterialsPath}/{m}.mat"), "Matériau " + m);
+#if ENABLE_INPUT_SYSTEM
+            Line(true, "Entrées : Input System");
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            Line(true, "Entrées : ancien Input Manager");
+#endif
+            Line(PlayerSettings.colorSpace == ColorSpace.Linear, "Espace colorimétrique linéaire");
+            Debug.Log(sb.ToString());
+        }
+
+        [MenuItem("Industria/Construire/Windows (PC)", priority = 60)]
+        public static void BuildWindows() => BuildFor(BuildTarget.StandaloneWindows64, "Builds/Windows/ProjectIndustria.exe");
+
+        [MenuItem("Industria/Construire/Android (APK)", priority = 61)]
+        public static void BuildAndroid() => BuildFor(BuildTarget.Android, "Builds/Android/ProjectIndustria.apk");
+
+        private static void BuildFor(BuildTarget target, string output)
+        {
             Run();
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = output,
+                target = target,
+                options = BuildOptions.None,
+            };
+            var report = BuildPipeline.BuildPlayer(options);
+            if (report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                Debug.Log($"[Industria] Build réussi : {Path.GetFullPath(output)}");
+                EditorUtility.RevealInFinder(output);
+            }
+            else
+            {
+                Debug.LogError($"[Industria] Build échoué ({report.summary.result}). Vérifiez que le module de plateforme est installé dans Unity Hub.");
+            }
         }
 
         [MenuItem("Industria/Configurer le projet", priority = 0)]
@@ -135,6 +207,14 @@ namespace Industria.EditorTools
 
             var terrainShader = Shader.Find(urp ? "Universal Render Pipeline/Terrain/Lit" : "Nature/Terrain/Standard");
             if (terrainShader != null) Save(new Material(terrainShader) { enableInstancing = true }, "IndustriaTerrain");
+
+            var particleShader = Shader.Find(urp ? "Universal Render Pipeline/Particles/Unlit" : "Particles/Standard Unlit");
+            if (particleShader != null)
+            {
+                var particle = new Material(particleShader);
+                MaterialLibrary.MakeTransparent(particle, urp);
+                Save(particle, "IndustriaParticle");
+            }
 
             var skyShader = Shader.Find("Skybox/Procedural");
             if (skyShader != null)

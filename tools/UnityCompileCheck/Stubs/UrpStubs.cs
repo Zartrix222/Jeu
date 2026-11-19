@@ -11,6 +11,7 @@ namespace UnityEngine.Rendering.Universal
         public float shadowDistance { get; set; }
         public int msaaSampleCount { get; set; }
         public bool supportsHDR { get; set; }
+        public float renderScale { get; set; }
         public override RenderPipeline CreatePipeline() => null; // stub only; access differs between Unity versions
     }
 }

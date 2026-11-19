@@ -79,6 +79,8 @@ namespace Industria.Simulation.Save
         public int worldSeed;
         public double playTimeSeconds;
         public double simulatedSeconds;
+        /// <summary>0..1 (0.25 = lever du soleil, 0.5 = midi). Absent des sauvegardes v0.1 : valeur par défaut.</summary>
+        public float timeOfDay = 0.32f;
         public PlayerSave player = new PlayerSave();
         public List<BuildingSave> buildings = new List<BuildingSave>();
         public List<ConveyorSave> conveyors = new List<ConveyorSave>();

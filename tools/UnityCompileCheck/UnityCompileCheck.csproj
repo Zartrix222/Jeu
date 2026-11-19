@@ -15,11 +15,13 @@
     <NoWarn>$(NoWarn);CS0649;CS0414</NoWarn>
     <InputMode Condition="'$(InputMode)' == ''">new</InputMode>
     <WithEditor Condition="'$(WithEditor)' == ''">false</WithEditor>
+    <Urp Condition="'$(Urp)' == ''">true</Urp>
     <DefineConstants Condition="'$(InputMode)' == 'new'">$(DefineConstants);ENABLE_INPUT_SYSTEM</DefineConstants>
     <DefineConstants Condition="'$(InputMode)' == 'legacy'">$(DefineConstants);ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
-    <DefineConstants Condition="'$(WithEditor)' == 'true'">$(DefineConstants);UNITY_EDITOR;INDUSTRIA_URP</DefineConstants>
-    <IntermediateOutputPath>obj/$(InputMode)-$(WithEditor)/</IntermediateOutputPath>
-    <OutputPath>bin/$(InputMode)-$(WithEditor)/</OutputPath>
+    <DefineConstants Condition="'$(Urp)' == 'true'">$(DefineConstants);INDUSTRIA_URP</DefineConstants>
+    <DefineConstants Condition="'$(WithEditor)' == 'true'">$(DefineConstants);UNITY_EDITOR</DefineConstants>
+    <IntermediateOutputPath>obj/$(InputMode)-$(WithEditor)-$(Urp)/</IntermediateOutputPath>
+    <OutputPath>bin/$(InputMode)-$(WithEditor)-$(Urp)/</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <ItemGroup>
@@ -27,7 +29,8 @@
     <Compile Include="../../Assets/_Project/Scripts/Runtime/**/*.cs" />
     <Compile Include="Stubs/InputSystemStubs.cs" Condition="'$(InputMode)' == 'new'" />
     <Compile Include="../../Assets/_Project/Scripts/Editor/**/*.cs" Condition="'$(WithEditor)' == 'true'" />
-    <Compile Include="Stubs/UrpStubs.cs" Condition="'$(WithEditor)' == 'true'" />
+    <Compile Include="Stubs/UrpStubs.cs" Condition="'$(Urp)' == 'true'" />
+    <Compile Include="Stubs/UrpRuntimeStubs.cs" Condition="'$(Urp)' == 'true'" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />

@@ -11,6 +11,9 @@
 - Sauvegarde / chargement locaux, menu principal, pause, objectifs guidés
 - Contrôles clavier/souris, manette, tactile (non testé sur appareil)
 
+## v0.1.1 — Version présentable ✅
+Voir [CHANGELOG.md](CHANGELOG.md).
+
 ## v0.2 — Construction avancée
 - Déplacement des bâtiments, copier une rotation, mode « grille »
 - Murs, rampes, toitures, plateformes, piliers, structures suspendues
@@ -32,6 +35,6 @@
 
 ## Direction artistique (en continu)
 - Remplacement des formes primitives par des modèles 3D, personnage animé
-- Cycle jour/nuit, météo (pluie, tempêtes de sable, cendres), post-traitement URP
+- Météo (pluie, tempêtes de sable, pluies de cendres)
 - Grottes (géométrie maillée), eau, sons et musique
 - Profils de qualité mobile (bas / moyen / haut)

@@ -46,7 +46,7 @@ namespace UnityEngine.InputSystem
         public static Keyboard current => null;
         public KeyControl wKey, aKey, sKey, dKey, eKey, rKey, tKey, gKey, hKey, bKey, xKey, cKey, iKey;
         public KeyControl upArrowKey, downArrowKey, leftArrowKey, rightArrowKey;
-        public KeyControl spaceKey, leftShiftKey, tabKey, escapeKey, f5Key, f9Key;
+        public KeyControl spaceKey, leftShiftKey, tabKey, escapeKey, f3Key, f5Key, f9Key;
         public KeyControl digit1Key, digit2Key, digit3Key, digit4Key, digit5Key, digit6Key, digit7Key, digit8Key, digit9Key;
     }
 

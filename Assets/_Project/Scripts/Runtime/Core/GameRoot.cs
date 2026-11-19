@@ -40,6 +40,7 @@ namespace Industria.Core
         public BuildModeController Build { get; private set; }
         public GameHUD Hud { get; private set; }
         public Inventory PlayerInventory { get; private set; }
+        public DayNightCycle DayNight { get; private set; }
 
         public GameState State { get; private set; } = GameState.Boot;
         public double PlayTime { get; private set; }
@@ -70,12 +71,18 @@ namespace Industria.Core
             PlayerInventory = new Inventory(GameInfo.PlayerInventorySlots, Content.Items);
 
             Input = gameObject.AddComponent<GameInput>();
-            EnvironmentSetup.Apply(Materials, transform);
+            var sun = EnvironmentSetup.Apply(Materials, transform);
+            DayNight = gameObject.AddComponent<DayNightCycle>();
+            DayNight.Init(sun);
             CameraRig = ThirdPersonCamera.Create(Input);
+            PostProcessing.Setup(CameraRig.Camera, transform, Application.isMobilePlatform);
+            PostProcessing.ApplyMobileQuality();
 
             World = new WorldGenerator(Content, Materials);
             World.Generate(GameInfo.DefaultSeed);
             CameraRig.MenuFocus = World.SpawnPoint;
+
+            new GameObject("Ambiance").AddComponent<AmbientEffects>().Init(CameraRig.transform, World, DayNight, Materials);
 
             Factory = new GameObject("FactoryWorld").AddComponent<FactoryWorld>();
             Factory.Init(Content, Materials, CameraRig.Camera);
@@ -98,6 +105,7 @@ namespace Industria.Core
         {
             Notifications.Update();
             Scanner.Update(this);
+            DayNight.Running = State == GameState.Playing;
             if (State != GameState.Playing) return;
 
             PlayTime += Time.deltaTime;
@@ -125,6 +133,7 @@ namespace Industria.Core
             player.Teleport(World.SpawnPoint, 0f);
             CameraRig.SetTarget(player.transform, 0f);
             PlayTime = 0;
+            DayNight.TimeOfDay = 0.32f;
             EnterPlaying();
             Notifications.Push($"Bienvenue sur {GameInfo.Planet}, pionnier.", NotificationKind.Info, 6f);
             Notifications.Push("Appuyez sur [C] pour scanner les gisements.", NotificationKind.Info, 8f);
@@ -151,6 +160,7 @@ namespace Industria.Core
             CameraRig.SetTarget(player.transform, save.player.yaw);
             CameraRig.Pitch = save.player.cameraPitch;
             PlayTime = save.playTimeSeconds;
+            DayNight.TimeOfDay = Mathf.Repeat(save.timeOfDay, 1f);
             EnterPlaying();
             Notifications.Push("Partie chargée.", NotificationKind.Success, 3f);
         }
@@ -163,6 +173,7 @@ namespace Industria.Core
                 gameVersion = GameInfo.Version,
                 worldSeed = World.Seed,
                 playTimeSeconds = PlayTime,
+                timeOfDay = DayNight.TimeOfDay,
                 player = new PlayerSave
                 {
                     position = new SVector3(Player.transform.position.x, Player.transform.position.y, Player.transform.position.z),

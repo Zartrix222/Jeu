@@ -18,6 +18,8 @@ namespace Industria.World
             sun.intensity = 1.25f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.85f;
+            sun.shadowBias = 0.05f;
+            sun.shadowNormalBias = 0.4f;
             RenderSettings.sun = sun;
 
             var sky = materials.Skybox();
@@ -31,7 +33,7 @@ namespace Industria.World
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = new Color(0.62f, 0.68f, 0.76f);
-            RenderSettings.fogDensity = 0.0028f;
+            RenderSettings.fogDensity = 0.0023f;
             return sun;
         }
     }

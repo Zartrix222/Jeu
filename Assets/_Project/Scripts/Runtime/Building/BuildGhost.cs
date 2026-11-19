@@ -34,6 +34,7 @@ namespace Industria.Building
             PartBuilder.SetLayerRecursive(_go, GameLayers.IgnoreRaycast);
             foreach (var c in _go.GetComponentsInChildren<Collider>()) UnityEngine.Object.Destroy(c);
             foreach (var mb in _go.GetComponentsInChildren<MachineVisual>()) mb.enabled = false;
+            foreach (var ps in _go.GetComponentsInChildren<ParticleSystem>()) UnityEngine.Object.DestroyImmediate(ps.gameObject);
             _renderers = _go.GetComponentsInChildren<Renderer>();
             foreach (var r in _renderers) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _lastValid = null;

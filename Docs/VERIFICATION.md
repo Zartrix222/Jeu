@@ -14,8 +14,13 @@ pas accessibles et l'éditeur exige une licence). Le jeu n'a donc **pas encore �
 | Compilation de tous les scripts runtime avec l'**Input System** | `tools/UnityCompileCheck` contre UnityEngine 2021.3 + stubs Input System | ✅ 0 erreur, 0 avertissement |
 | Compilation avec l'**ancien Input Manager** | idem, `ENABLE_LEGACY_INPUT_MANAGER` | ✅ |
 | Compilation des scripts **éditeur** | contre UnityEditor 2021.1 + stubs URP | ✅ |
+| Compilation **sans URP** (pipeline Built-in) | `Urp=false`, ancien Input Manager | ✅ |
+| Intégrité du projet : `.meta` présents, GUID uniques, scène → script `GameRoot`, Build Settings → scène, JSON | `tools/check-project.py` | ✅ 0 erreur |
+| Chargement d'une sauvegarde v0.1 par la v0.1.1 | test NUnit | ✅ (19/19 tests au total) |
 
 ## Ce qui n'a PAS encore été vérifié
+- Que Unity 6 lise la scène `Main.unity` écrite à la main sans avertissement (format standard ; en secours, `GameBootstrap` crée `GameRoot` automatiquement si la scène Main n'en contient pas).
+- Le rendu réel des nouveautés graphiques (post-traitement, eau, particules, jour/nuit) et leur coût en FPS.
 - Exécution dans Unity 6 (rendu, physique, sensations de contrôle, équilibrage, performances).
 - API spécifiques à Unity 6 absentes des DLL de référence (ex. `NamedBuildTarget` est protégé par `#if UNITY_2021_2_OR_NEWER`).
 - Création automatique de l'asset URP (recommandé : laisser Unity la faire ou utiliser un projet « Universal 3D »).

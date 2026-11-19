@@ -13,6 +13,8 @@ namespace Industria.Factory
         public Material GlowOn, GlowOff;
         public Renderer StatusLight;
         public Material StatusWorking, StatusWaiting, StatusBlocked;
+        /// <summary>Particle systems that emit only while the machine works (smoke, dust...).</summary>
+        public System.Collections.Generic.List<ParticleSystem> WorkingEffects = new System.Collections.Generic.List<ParticleSystem>();
 
         private Machine _machine;
         private MachineStatus _lastStatus = (MachineStatus)(-1);
@@ -32,6 +34,7 @@ namespace Industria.Factory
                 if (Glow != null && GlowOn != null) Glow.sharedMaterial = working ? GlowOn : GlowOff;
                 if (StatusLight != null)
                     StatusLight.sharedMaterial = working ? StatusWorking : status == MachineStatus.OutputFull ? StatusBlocked : StatusWaiting;
+                foreach (var fx in WorkingEffects) Industria.Rendering.EffectsFactory.SetEmitting(fx, working);
             }
 
             if (Spinner != null)

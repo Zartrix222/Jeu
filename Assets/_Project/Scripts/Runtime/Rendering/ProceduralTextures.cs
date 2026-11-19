@@ -16,7 +16,9 @@ namespace Industria.Rendering
                 for (int x = 0; x < size; x++)
                 {
                     float u = x / (float)size, v = y / (float)size;
-                    float n = TileableNoise(u, v, frequency, off) * 0.65f + TileableNoise(u, v, frequency * 4f, off + 31f) * 0.35f;
+                    float n = TileableNoise(u, v, frequency, off) * 0.55f + TileableNoise(u, v, frequency * 4f, off + 31f) * 0.3f
+                              + TileableNoise(u, v, frequency * 12f, off + 77f) * 0.15f;
+                    n = Mathf.Clamp01((n - 0.5f) * 1.35f + 0.5f);
                     pixels[y * size + x] = Color.Lerp(a, b, n);
                 }
             }
@@ -68,6 +70,48 @@ namespace Industria.Rendering
                     tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
                 }
             tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D _softDot;
+
+        /// <summary>Soft round sprite for particles.</summary>
+        public static Texture2D SoftDot()
+        {
+            if (_softDot != null) return _softDot;
+            const int size = 64;
+            _softDot = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "SoftDot", wrapMode = TextureWrapMode.Clamp };
+            float c = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c;
+                    float a = Mathf.Clamp01(1f - d);
+                    _softDot.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+                }
+            _softDot.Apply(true, true);
+            return _softDot;
+        }
+
+        /// <summary>Concrete with a 1 m panel grid (texture spans 4 m on a foundation face).</summary>
+        public static Texture2D ConcreteGrid(int size = 256)
+        {
+            var tex = Noise("concrete_grid", new Color(0.44f, 0.45f, 0.46f), new Color(0.6f, 0.61f, 0.6f), 12f, size, 9);
+            var px = tex.GetPixels();
+            int cell = size / 4;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    int gx = x % cell, gy = y % cell;
+                    bool line = gx < 2 || gy < 2;
+                    bool edge = x < 6 || y < 6 || x > size - 7 || y > size - 7;
+                    var c = px[y * size + x];
+                    if (edge) c = new Color(0.95f, 0.6f, 0.15f) * 0.85f;          // orange safety border
+                    else if (line) c *= 0.72f;                                      // panel joints
+                    px[y * size + x] = c;
+                }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
             return tex;
         }
 

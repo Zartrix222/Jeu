@@ -55,7 +55,7 @@ namespace Industria.Input
         }
 
         private static bool IsUiAction(GameAction a) =>
-            a == GameAction.Pause || a == GameAction.Inventory || a == GameAction.QuickSave || a == GameAction.QuickLoad;
+            a == GameAction.Pause || a == GameAction.Inventory || a == GameAction.QuickSave || a == GameAction.QuickLoad || a == GameAction.ToggleStats;
 
         public bool Held(GameAction action) => (!GameplayBlocked || IsUiAction(action)) && _held[(int)action];
         public bool Pressed(GameAction action) => (!GameplayBlocked || IsUiAction(action)) && _pressed[(int)action];

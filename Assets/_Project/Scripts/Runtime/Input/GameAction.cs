@@ -19,6 +19,7 @@ namespace Industria.Input
         QuickSave,     // F5
         QuickLoad,     // F9
         Pause,         // Escape
+        ToggleStats,   // F3
         Hotbar1, Hotbar2, Hotbar3, Hotbar4, Hotbar5, Hotbar6, Hotbar7, Hotbar8, Hotbar9,
         Count
     }

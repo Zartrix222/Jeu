@@ -20,6 +20,7 @@ namespace Industria.UI
         private HudMachineView _machine;
         private HudMenuView _menu;
         private HudTouchView _touch;
+        private PerformanceOverlay _perf;
 
         public HudPanel Panel { get; private set; }
         public BuildingView OpenMachine { get; private set; }
@@ -32,6 +33,7 @@ namespace Industria.UI
             _machine = new HudMachineView(root);
             _menu = new HudMenuView(root);
             _touch = new HudTouchView(root);
+            _perf = new PerformanceOverlay(root);
         }
 
         public void OpenMachinePanel(BuildingView building)
@@ -52,6 +54,8 @@ namespace Industria.UI
         {
             if (_root == null) return;
             var input = _root.Input;
+            _perf.Tick();
+            if (input.Pressed(GameAction.ToggleStats)) _perf.Visible = !_perf.Visible;
 
             if (_root.State == GameState.Playing || _root.State == GameState.Paused)
             {
@@ -94,6 +98,7 @@ namespace Industria.UI
             }
 
             _gameplay.Draw(Panel == HudPanel.None);
+            _perf.Draw(UIScale.Width);
             if (_root.Input.Touch.Enabled && Panel == HudPanel.None) _touch.Draw();
 
             switch (Panel)

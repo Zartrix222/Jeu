@@ -6,7 +6,10 @@ Explorez, extrayez, construisez librement en 3D et automatisez une civilisation 
 - **Moteur** : Unity 6 (6000.x LTS) + Universal Render Pipeline (URP), C#
 - **Cibles** : PC (développement) puis Android et iOS
 - **Mode** : solo uniquement, hors ligne, sauvegardes locales (aucun serveur, aucun compte)
-- **Version actuelle** : 0.1.0 — première version jouable (ère 1 « Survie »)
+- **Version actuelle** : 0.1.1 — version présentable de l'ère 1 « Survie » ([journal](Docs/CHANGELOG.md))
+- **Sauvegarde de la v0.1.0** : branche `backup/v0.1.0`
+
+> **Pour jouer sur PC en 4 étapes : voir [Docs/LANCER_SUR_PC.md](Docs/LANCER_SUR_PC.md).**
 
 ---
 
@@ -27,16 +30,16 @@ git checkout claude/project-industria-game-dev-taddo4
 
 ### Ouvrir le projet
 1. Unity Hub > *Projects* > **Add** > *Add project from disk* > sélectionnez le dossier `ProjectIndustria`.
-2. Ouvrez-le avec Unity 6. Le dossier `ProjectSettings/` n'existe pas encore : Unity le crée et
-   importe les packages listés dans `Packages/manifest.json` (URP, Input System…). Comptez quelques minutes.
+2. Ouvrez-le avec Unity 6. Unity complète `ProjectSettings/` et importe les packages listés dans
+   `Packages/manifest.json` (URP, Input System…). Comptez quelques minutes.
    Si Unity propose de mettre à jour la version d'URP vers celle de votre éditeur, acceptez.
 3. À la première ouverture, le script `Industria > Configurer le projet` s'exécute **automatiquement** :
    - crée et assigne un asset URP si aucun pipeline n'est configuré ;
    - crée les matériaux de base dans `Assets/_Project/Resources/Materials` (indispensables aux builds) ;
    - règle le nom du produit, l'orientation paysage et les identifiants Android/iOS ;
-   - crée la scène `Assets/_Project/Scenes/Main.unity` et l'ajoute aux Build Settings.
+   - ouvre la scène `Assets/_Project/Scenes/Main.unity` (fournie dans le dépôt).
    Vous pouvez le relancer à tout moment via le menu **Industria > Configurer le projet**.
-4. Ouvrez `Assets/_Project/Scenes/Main.unity` (menu **Industria > Ouvrir la scène principale**) et appuyez sur **Play**.
+4. Appuyez sur **Play** : le jeu démarre toujours sur la scène Main (ou menu **Industria > ▶ Jouer**).
 5. Committez les fichiers générés (`ProjectSettings/`, `Packages/packages-lock.json`, scène, matériaux et leurs `.meta`).
 
 > Si une fenêtre demande d'activer le nouveau système d'entrée (« Input System »), acceptez :
@@ -62,6 +65,7 @@ git checkout claude/project-industria-game-dev-taddo4
 | Annuler / quitter un mode | Clic droit | ANNULER |
 | Sauvegarder / Charger | **F5** / **F9** | Menu pause |
 | Menu pause | Échap | MENU |
+| Compteur de performances | **F3** | — |
 
 ## 3. Boucle de jeu (v0.1)
 
@@ -98,4 +102,4 @@ Voir [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md), [Docs/ROADMAP.md](Docs/ROADMA
 ./tools/compile-check.sh
 ```
 Compile tous les scripts contre des DLL de référence Unity (Input System et ancien Input Manager, éditeur inclus)
-et exécute les tests unitaires de la simulation.
+vérifie l'intégrité du projet (`.meta`, GUID, scène) et exécute les tests unitaires de la simulation.

@@ -156,3 +156,23 @@ namespace Industria.Tests
         }
     }
 }
+
+namespace Industria.Tests
+{
+    public class SaveCompatibilityTests
+    {
+        [NUnit.Framework.Test]
+        public void V01SaveWithoutTimeOfDayStillLoads()
+        {
+            // JSON written by v0.1 (no timeOfDay field).
+            const string json = "{\"version\":1,\"gameVersion\":\"0.1.0\",\"worldSeed\":1337,\"playTimeSeconds\":12.5," +
+                                "\"player\":{\"position\":{\"x\":1,\"y\":2,\"z\":3},\"yaw\":10,\"cameraPitch\":15,\"inventory\":[{\"itemId\":\"ore_iron\",\"count\":4}]}," +
+                                "\"buildings\":[],\"conveyors\":[],\"unlockedBuildables\":[],\"completedObjectives\":[\"scan\"]}";
+            var save = TestContent.Deserialize<Industria.Simulation.Save.SaveGame>(json);
+            NUnit.Framework.Assert.That(save.worldSeed, NUnit.Framework.Is.EqualTo(1337));
+            NUnit.Framework.Assert.That(save.timeOfDay, NUnit.Framework.Is.EqualTo(0.32f));
+            NUnit.Framework.Assert.That(save.player.inventory[0].count, NUnit.Framework.Is.EqualTo(4));
+            NUnit.Framework.Assert.That(save.completedObjectives, NUnit.Framework.Has.Member("scan"));
+        }
+    }
+}
