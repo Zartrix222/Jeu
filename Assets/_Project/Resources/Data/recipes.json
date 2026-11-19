@@ -1,0 +1,14 @@
+{
+    "recipes": [
+        {
+            "id": "smelt_iron", "displayName": "Lingot de fer", "machineType": "smelter", "duration": 2.0,
+            "inputs":  [ { "itemId": "ore_iron",   "count": 1 } ],
+            "outputs": [ { "itemId": "ingot_iron", "count": 1 } ]
+        },
+        {
+            "id": "smelt_copper", "displayName": "Lingot de cuivre", "machineType": "smelter", "duration": 2.0,
+            "inputs":  [ { "itemId": "ore_copper",   "count": 1 } ],
+            "outputs": [ { "itemId": "ingot_copper", "count": 1 } ]
+        }
+    ]
+}

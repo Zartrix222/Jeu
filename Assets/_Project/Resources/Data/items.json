@@ -1,0 +1,8 @@
+{
+    "items": [
+        { "id": "ore_iron",     "displayName": "Minerai de fer",    "description": "Minerai brut extrait des gisements ferreux de NEXUS-01.", "category": "resource", "maxStack": 100, "color": "#8C4A36" },
+        { "id": "ore_copper",   "displayName": "Minerai de cuivre", "description": "Minerai brut aux reflets orangés et verdâtres.",        "category": "resource", "maxStack": 100, "color": "#C9773F" },
+        { "id": "ingot_iron",   "displayName": "Lingot de fer",     "description": "Fer raffiné, base de toute construction.",             "category": "material", "maxStack": 100, "color": "#B4BCC6" },
+        { "id": "ingot_copper", "displayName": "Lingot de cuivre",  "description": "Cuivre raffiné, conducteur indispensable.",              "category": "material", "maxStack": 100, "color": "#E39352" }
+    ]
+}

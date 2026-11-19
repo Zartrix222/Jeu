@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the game's C# scripts against Unity reference assemblies, outside of Unity.
+    It cannot replace opening the project in Unity 6 (the reference DLLs are from Unity 2021.3 / 2021.1
+    and some packages are stubbed), but it catches syntax / type / API errors early.
+    Usage: ./tools/compile-check.sh
+    Properties:  InputMode = new | legacy ;  WithEditor = true | false
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0649;CS0414</NoWarn>
+    <InputMode Condition="'$(InputMode)' == ''">new</InputMode>
+    <WithEditor Condition="'$(WithEditor)' == ''">false</WithEditor>
+    <DefineConstants Condition="'$(InputMode)' == 'new'">$(DefineConstants);ENABLE_INPUT_SYSTEM</DefineConstants>
+    <DefineConstants Condition="'$(InputMode)' == 'legacy'">$(DefineConstants);ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
+    <DefineConstants Condition="'$(WithEditor)' == 'true'">$(DefineConstants);UNITY_EDITOR;INDUSTRIA_URP</DefineConstants>
+    <IntermediateOutputPath>obj/$(InputMode)-$(WithEditor)/</IntermediateOutputPath>
+    <OutputPath>bin/$(InputMode)-$(WithEditor)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/_Project/Scripts/Simulation/**/*.cs" />
+    <Compile Include="../../Assets/_Project/Scripts/Runtime/**/*.cs" />
+    <Compile Include="Stubs/InputSystemStubs.cs" Condition="'$(InputMode)' == 'new'" />
+    <Compile Include="../../Assets/_Project/Scripts/Editor/**/*.cs" Condition="'$(WithEditor)' == 'true'" />
+    <Compile Include="Stubs/UrpStubs.cs" Condition="'$(WithEditor)' == 'true'" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />
+    <PackageReference Include="Unity3D.SDK" Version="2021.1.14.1" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(WithEditor)' == 'true'">
+    <Reference Include="UnityEditor">
+      <HintPath>$(PkgUnity3D_SDK)/lib/UnityEditor.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

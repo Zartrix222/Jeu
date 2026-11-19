@@ -1,0 +1,12 @@
+{
+    "eras": [
+        { "index": 1, "displayName": "Survie",                    "description": "Collecte manuelle, premières fonderies et foreuses." },
+        { "index": 2, "displayName": "Mécanique",                 "description": "Constructeurs, pièces mécaniques, convoyeurs rapides." },
+        { "index": 3, "displayName": "Industrie",                 "description": "Assembleurs, entrepôts, production en série." },
+        { "index": 4, "displayName": "Électricité",               "description": "Générateurs, réseaux électriques, machines alimentées." },
+        { "index": 5, "displayName": "Pétrochimie",               "description": "Extracteurs de pétrole, raffineries, tuyaux et fluides." },
+        { "index": 6, "displayName": "Automatisation",            "description": "Logistique intelligente, répartiteurs, drones." },
+        { "index": 7, "displayName": "Technologie avancée",       "description": "Matériaux composites, énergie nucléaire, calcul." },
+        { "index": 8, "displayName": "Technologie extraterrestre","description": "Artefacts de NEXUS-01 et technologies exotiques." }
+    ]
+}

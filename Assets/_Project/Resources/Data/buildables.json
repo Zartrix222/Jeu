@@ -1,0 +1,39 @@
+{
+    "buildables": [
+        {
+            "id": "smelter_mk1", "displayName": "Fonderie primitive", "category": "machine", "era": 1,
+            "description": "Fond le minerai en lingots. Alimentez-la à la main ou par convoyeur.",
+            "behaviour": "processor", "machineType": "smelter", "visual": "smelter", "hotbarOrder": 1,
+            "cost": [ { "itemId": "ore_iron", "count": 12 }, { "itemId": "ore_copper", "count": 6 } ],
+            "sizeX": 3.0, "sizeY": 3.2, "sizeZ": 4.0, "powerUsage": 4.0, "bufferCapacity": 50,
+            "ports": [
+                { "kind": "input",  "x": 0.0, "y": 0.75, "z": -2.0, "dirX": 0.0, "dirY": 0.0, "dirZ": -1.0 },
+                { "kind": "output", "x": 0.0, "y": 0.75, "z":  2.0, "dirX": 0.0, "dirY": 0.0, "dirZ":  1.0 }
+            ]
+        },
+        {
+            "id": "drill_mk1", "displayName": "Foreuse Mk1", "category": "machine", "era": 1,
+            "description": "Extrait automatiquement le minerai d'un gisement. À placer sur un gisement.",
+            "behaviour": "extractor", "visual": "drill", "hotbarOrder": 2, "requiresResourceNode": true,
+            "cost": [ { "itemId": "ingot_iron", "count": 8 }, { "itemId": "ingot_copper", "count": 4 } ],
+            "sizeX": 3.0, "sizeY": 4.5, "sizeZ": 3.0, "powerUsage": 5.0, "extractionPerMinute": 30.0, "bufferCapacity": 50,
+            "ports": [
+                { "kind": "output", "x": 0.0, "y": 0.75, "z": 1.5, "dirX": 0.0, "dirY": 0.0, "dirZ": 1.0 }
+            ]
+        },
+        {
+            "id": "conveyor_mk1", "displayName": "Convoyeur Mk1", "category": "logistics", "era": 1,
+            "description": "Transporte les objets d'une sortie vers une entrée. Cliquez le départ puis l'arrivée.",
+            "behaviour": "conveyor", "visual": "conveyor", "hotbarOrder": 3,
+            "cost": [ { "itemId": "ingot_iron", "count": 1 } ], "costPerMeters": 2.0,
+            "sizeX": 0.8, "sizeY": 0.2, "sizeZ": 1.0, "beltSpeed": 1.2
+        },
+        {
+            "id": "foundation_4m", "displayName": "Fondation 4 m", "category": "structure", "era": 1,
+            "description": "Dalle de 4 x 4 m. S'aligne sur les fondations voisines. Peut être inclinée.",
+            "behaviour": "", "visual": "foundation", "hotbarOrder": 4, "gridSnap": true, "allowTilt": true,
+            "cost": [ { "itemId": "ingot_iron", "count": 2 } ],
+            "sizeX": 4.0, "sizeY": 0.5, "sizeZ": 4.0
+        }
+    ]
+}
