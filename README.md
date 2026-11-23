@@ -14,4 +14,6 @@ python3 video/render.py                                   # style "cône", mélo
 python3 video/render.py --musique son.mp3 --volume-musique 0.8 --volume-effets 0.3
 python3 video/render.py --style spirale --anneaux 1703
 ```
+Avec `--musique`, le script choisit tout seul le meilleur passage (durée `--duree`), repère les drops, et fait sortir la balle du cercle à chaque drop. Dans le cercle, la musique est plus douce et étouffée ; dehors, elle est pleine avec de la réverb. `--effet` règle l'intensité de cet effet (0 à 2), `--sans-sync` le désactive, `--debut-musique 62` force le début du passage.
+
 Options : `--duree`, `--anneaux`, `--vitesse`, `--ouverture`, `--rotation`, `--debut-musique`, `--graine`, `--fps`.
