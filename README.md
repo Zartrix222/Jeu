@@ -6,10 +6,12 @@ Ouvrir `index.html` dans un navigateur (mobile ou PC). Touchez l'écran pour ouv
 
 ## Vidéo
 
-`video/render.py` génère une vidéo verticale 1080x1920 (format TikTok) avec la musique : chaque rebond joue la note suivante de *La Lettre à Élise* (domaine public), chaque anneau qui éclate fait un petit « ting ».
+`video/render.py` génère une vidéo verticale 1080x1920 (format TikTok) avec le son.
 
 ```
 pip install pycairo numpy   # + ffmpeg
-python3 video/render.py --duree 60 --anneaux 1703 --sortie anneaux.mp4
+python3 video/render.py                                   # style "cône", mélodie sur les rebonds
+python3 video/render.py --musique son.mp3 --volume-musique 0.8 --volume-effets 0.3
+python3 video/render.py --style spirale --anneaux 1703
 ```
-Options : `--vitesse`, `--ouverture`, `--graine` (change le trajet de la balle), `--fps`.
+Options : `--duree`, `--anneaux`, `--vitesse`, `--ouverture`, `--rotation`, `--debut-musique`, `--graine`, `--fps`.
