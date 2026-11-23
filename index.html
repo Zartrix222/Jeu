@@ -114,6 +114,7 @@
         <button data-preset="neon"><b>Néon</b><span>vif, pulse fort</span></button>
         <button data-preset="doux"><b>Doux</b><span>calme, son planant</span></button>
         <button data-preset="explosif"><b>Explosif</b><span>secousses, basses</span></button>
+        <button data-preset="rubis"><b>Rouge néon</b><span>comme ta 2e vidéo</span></button>
       </div>
       <p class="hint">Un style règle tout d'un coup. Tu peux ensuite ajuster chaque réglage en dessous. Tes réglages sont gardés pour la prochaine fois.</p>
     </section>
@@ -252,6 +253,7 @@
             <option value="plongee" selected>Plongée dans le tunnel (la caméra suit la balle)</option>
             <option value="video">Collée au bord (grande lueur)</option>
             <option value="ondes">Ondes et étincelles</option>
+            <option value="trou">La balle tombe et creuse un trou</option>
           </select>
         </div>
         <div class="field">
@@ -264,6 +266,7 @@
         </div>
         <div class="field" style="align-content:end">
           <label class="check"><input id="fade" type="checkbox" checked> Fondu au noir au début et à la fin</label>
+          <label class="check"><input id="outro" type="checkbox" checked> Finir sur un cercle audio (4 dernières secondes)</label>
         </div>
       </div>
       <div class="grid">
@@ -340,8 +343,8 @@
         <div class="field">
           <label class="top" for="res">Qualité de la vidéo</label>
           <select id="res">
-            <option value="720" selected>720 × 1280 (plus fluide)</option>
-            <option value="1080">1080 × 1920 (plus net)</option>
+            <option value="1080" selected>1080 × 1920 (haute qualité)</option>
+            <option value="720">720 × 1280 (pour les téléphones lents)</option>
           </select>
         </div>
       </div>
@@ -390,9 +393,11 @@
     'Glacier':           { rings: [[.45,.85,1],[.25,.5,1],[.85,.95,1],[.25,.5,1]], ball: [1,1,1], halo: [.6,.85,1] },
     'Braise':            { rings: [[1,.25,.15],[1,.55,.1],[1,.85,.3],[1,.55,.1]], ball: [1,.95,.8], halo: [1,.6,.2] },
     'Néon':              { rings: [[.1,1,.9],[1,.2,.8],[.45,.3,1],[1,.2,.8]], ball: [1,1,1], halo: [.3,1,.9] },
+    'Rubis':             { rings: [[1,.36,.36],[.86,.2,.22],[1,.5,.46],[.8,.16,.2]], ball: 'rainbow', halo: [1,.45,.45], warm: [1,.55,.5], flashTo: [1,.8,.78], bg: [.07,.012,.022], disk: [.13,.04,.06], radial: .6, dust: [1,.92,.92] },
     'Nuit':              { rings: [[.85,.85,.95],[.42,.42,.58],[.97,.97,1],[.42,.42,.58]], ball: [1,.95,.8], halo: [1,.9,.6] },
   };
   let paletteName = 'Coucher de soleil';
+  const NEON = [[.3,1,.45],[.25,.95,1],[.75,.4,1],[1,.35,.75],[1,.9,.3]];
 
   // ---------- Réglages ----------
   const S = {
@@ -402,7 +407,7 @@
     get echo() { return +$('echo').value; }, get bass() { return +$('bass').value; },
     get follow() { return $('follow').value === '1'; }, get shake() { return +$('shake').value; }, get zoom() { return +$('zoom').value; },
     get flash() { return +$('flash').value; }, get react() { return +$('react').value; }, get scroll() { return +$('scroll').value; },
-    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get beat() { return +$('beat').value; }, get exitFx() { return +$('exitFx').value; }, get exitStyle() { return $('exitStyle').value; }, get fade() { return $('fade').checked; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
+    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get beat() { return +$('beat').value; }, get exitFx() { return +$('exitFx').value; }, get exitStyle() { return $('exitStyle').value; }, get fade() { return $('fade').checked; }, get outro() { return $('outro').checked; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
     get density() { return +$('density').value; }, get thick() { return +$('thick').value; },
     get counter() { return $('counter').value === '1'; }, get topText() { return $('topText').value.trim(); },
     get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
@@ -535,7 +540,8 @@
     // écart auto : au départ les anneaux remplissent juste l'écran, puis il y en a de moins en moins
     const SP = (CONE && opt.sp) ? W / 1000 * opt.sp * S.density : (CONE && opt.spacingN) ? Math.min(14, Math.max(1.6, (Math.hypot(W, W * 16 / 9) / 2 - R0) / opt.spacingN)) * S.density : W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
     const EXIT_VIDEO = S.exitStyle === 'video', FOLLOW = S.follow, RATE = (CONE && S.exitStyle !== 'plongee') ? (opt.rate || S.rate || 50) : 1e9;
-    const SYNC = CONE && wins.length > 0, DIVE = SYNC && S.exitStyle === 'plongee', VOUT = (opt.vout || 300) * W / 1000;
+    const SYNC = CONE && wins.length > 0, DIVE = SYNC && S.exitStyle === 'plongee', TROU = SYNC && S.exitStyle === 'trou', VOUT = (opt.vout || 300) * W / 1000;
+    const BREAK = TROU ? 0.6 : 1; // en mode trou, la balle mord un peu dans l'anneau qu'elle casse
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
     const a0 = rnd() * TAU;
@@ -581,10 +587,21 @@
       } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
       const lag = st.first - st.offset;
       if (DIVE) { /* plongée : les anneaux restent en place, le trou grandit depuis le centre */ }
+      else if (TROU && win) st.offset += Math.min(lag, RATE * 0.45 * dt); // le trou se creuse, puis se referme après
       else if (CONE) st.offset += Math.min(lag, (55 + 70 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
       const d0 = Math.hypot(st.x, st.y) || 1e-9;
       if (CONE && SYNC && d0 > R0) {
-        if (DIVE) {
+        if (TROU) {
+          const nx = st.x / d0, ny = st.y / d0;
+          if (win && st.first < N) {
+            // la balle tombe vers l'extérieur, au milieu du cône
+            let vr = st.vx * nx + st.vy * ny, vt = -st.vx * ny + st.vy * nx;
+            vr += W * 1.6 * dt;
+            const e = wrap(ringA(st.first) - Math.atan2(st.y, st.x));
+            vt += (e * d0 * 4 - vt) * Math.min(1, 6 * dt);
+            st.vx = nx * vr - ny * vt; st.vy = ny * vr + nx * vt;
+          } else { st.vx = -nx * SPEED * 1.4; st.vy = -ny * SPEED * 1.4; }
+        } else if (DIVE) {
           const nx = st.x / d0, ny = st.y / d0;
           if (win && st.first < N) {
             // plongée : la balle file vers l'extérieur au milieu du cône et casse chaque anneau traversé
@@ -619,8 +636,15 @@
         const i = st.first; if (i >= N) break;
         const r = ringR(i), d = Math.hypot(st.x, st.y) || 1e-9, a = Math.atan2(st.y, st.x);
         if ((win && d > R0 - BR) || inGap(i, a, r)) {
-          if (d > r) {
-            if (st.t - st.lastPop < 1 / RATE) break; // cadence des éclats limitée
+          if (d + BR * (1 - BREAK) > r) {
+            if (st.t - st.lastPop < 1 / RATE) {
+              if (TROU) { // l'anneau tient encore : la balle rebondit dessus
+                const nx = st.x / d, ny = st.y / d, rr = r - BR * (1 - BREAK);
+                st.x = nx * rr; st.y = ny * rr;
+                const vn = st.vx * nx + st.vy * ny; if (vn > 0) { st.vx -= 1.35 * vn * nx; st.vy -= 1.35 * vn * ny; }
+              }
+              break;
+            }
             const rot = ringA(i); st.first++; st.pops++; st.lastPop = st.t; cb && cb.pop(i, r, rot, gap[i]); continue;
           }
         } else if (d > (SYNC ? R0 : r) - BR && (!SYNC || d <= R0)) {
@@ -645,7 +669,7 @@
         }
       }
     }
-    return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, DIVE, W };
+    return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, DIVE, TROU, W };
   }
 
   function countPops(wins, opt, cap = 20000) {
@@ -666,7 +690,7 @@
   function buildColors() { return { length: Infinity }; } // couleurs calculées à la volée (défilement)
   const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
 
-  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [], bloom: 0, wasOut: false, camX: 0, camY: 0, camZ: 1 }; }
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [], bloom: 0, wasOut: false, camX: 0, camY: 0, camZ: 1, ballIdx: 0, ballCol: null }; }
   function onPop(i, r, rot, g) {
     const W = sim.W, n = Math.round((sim.CONE ? 4 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
@@ -680,6 +704,7 @@
       vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.97 - depth), life: 10 + Math.random() * 25, col: lerp(col, [1, 1, 1], Math.random() * 0.4), ph: Math.random() * TAU, sp: (Math.random() - .5) * 0.25, sz: 0.6 + Math.random() * 1.2 });
     }
     if (vis.dust.length > 5000) vis.dust.splice(0, vis.dust.length - 5000);
+    if (sim.st.pops % 12 === 0) vis.ballIdx++;
     vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06); vis.shake = Math.min(1, vis.shake + 0.12);
     const fx = S.exitFx;
     if (fx > 0 && S.exitStyle === 'ondes') {
@@ -693,7 +718,14 @@
     }
     sfx.pop();
   }
-  function onBounce() { sfx.bounce(); }
+  function onBounce() { sfx.bounce(); vis.ballIdx++; }
+  function ballColor() {
+    const pal = PALETTES[paletteName];
+    if (pal.ball !== 'rainbow') return pal.ball;
+    const tgt = NEON[vis.ballIdx % NEON.length];
+    vis.ballCol = vis.ballCol ? lerp(vis.ballCol, tgt, 0.12) : tgt;
+    return vis.ballCol;
+  }
 
   function updateVisual(dt) {
     const k = Math.pow(0.985, dt * 60);
@@ -717,7 +749,7 @@
         const pal = PALETTES[paletteName];
         for (let k = 0; k < Math.round(160 * S.parts); k++) {
           const depth = Math.min(0.75, Math.abs(gauss(Math.random)) * 0.12);
-          vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.97 - depth), life: 8 + Math.random() * 20, col: lerp(pal.rings[k % pal.rings.length], [1, 1, 1], Math.random() * 0.4), ph: Math.random() * TAU, sp: (Math.random() - .5) * 0.25, sz: 0.6 + Math.random() * 1.2 });
+          vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.97 - depth), life: 8 + Math.random() * 20, col: pal.dust || lerp(pal.rings[k % pal.rings.length], [1, 1, 1], Math.random() * 0.4), ph: Math.random() * TAU, sp: (Math.random() - .5) * 0.25, sz: 0.6 + Math.random() * 1.2 });
         }
       }
     }
@@ -742,7 +774,8 @@
     const lvl = level(st.t);
     const LW = Math.max(1.5 / sc, sim.SP * S.thick * (sim.CONE ? 1 : 0.55) * (1 + S.react * lvl * 0.5));
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#030205'; ctx.fillRect(0, 0, view.width, view.height);
+    const BG = pal.bg || [.012, .008, .02];
+    ctx.fillStyle = rgb(BG); ctx.fillRect(0, 0, view.width, view.height);
     const z = sc * vis.camZ * (1 + (sim.DIVE ? 0 : S.zoom * 0.22 * vis.zoom) + S.beat * 0.045 * vis.bump), shk = (S.shake * vis.shake * 0.014 + S.exitFx * vis.zoom * 0.004) * W;
     const ox = (Math.random() - .5) * 2 * shk * sc, oy = (Math.random() - .5) * 2 * shk * sc;
     ctx.setTransform(z, 0, 0, z, view.width / 2 + ox - vis.camX * z, view.height / 2 + oy - vis.camY * z);
@@ -752,8 +785,9 @@
       const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
       const rot = sim.ringA(i), b = Math.min(sim.DIVE ? 0.35 : 0.85, fl * Math.max(0, 1 - (r - innerR) / (W * 0.6)) + glow);
       let c = ringColor(i);
-      if (warm > 0.01) { const f = warm * Math.max(0, 1 - (r - innerR) / (W * (sim.DIVE ? 0.28 : 0.55))); if (f > 0.01) c = lerp(c, [1, .78, .3], Math.min(sim.DIVE ? 0.5 : 0.9, f)); }
-      ctx.strokeStyle = rgb(b > 0.01 ? lerp(c, [1, 1, .9], b) : c);
+      if (pal.radial) c = lerp(c, BG, pal.radial * Math.min(1, (r - innerR) / (W * 0.95)));
+      if (warm > 0.01) { const f = warm * Math.max(0, 1 - (r - innerR) / (W * (sim.DIVE ? 0.28 : 0.55))); if (f > 0.01) c = lerp(c, pal.warm || [1, .78, .3], Math.min(sim.DIVE ? 0.5 : pal.warm ? 0.55 : 0.9, f)); }
+      ctx.strokeStyle = rgb(b > 0.01 ? lerp(c, pal.flashTo || [1, 1, .9], b) : c);
       ctx.beginPath(); ctx.arc(0, 0, r, rot + sim.gap[i] / 2, rot - sim.gap[i] / 2 + TAU); ctx.stroke();
     }
     for (const p of vis.particles) { ctx.fillStyle = rgb(p.col, Math.max(0, Math.min(1, p.life))); ctx.fillRect(p.x - LW, p.y - LW, LW * 2, LW * 2); }
@@ -774,7 +808,7 @@
       ctx.globalCompositeOperation = 'source-over';
     }
     if (sim.CONE) {
-      ctx.fillStyle = '#030205'; ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgb(pal.disk || BG); ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
       const ds = W * 0.0022;
       for (const d of vis.dust) {
         const al = Math.min(1, d.life / 3) * (0.45 + 0.55 * Math.sin(d.ph + st.t * 5));
@@ -796,8 +830,11 @@
       g.addColorStop(0, rgb(pal.halo, .1)); g.addColorStop(1, rgb(pal.halo, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, sim.R0, 0, TAU); ctx.fill();
     }
+    const outroA = (S.outro && playing && outroLen()) ? Math.min(1, Math.max(0, (st.t - (S.dur - outroLen())) / 0.6)) : 0;
+    if (outroA > 0) drawOutro(outroA, W, pal);
     // compteur
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.globalAlpha = 1 - outroA;
     if (S.counter) {
       const fs = W * (sim.CONE ? 0.1 : 0.105) * (1 + vis.pulse * 0.06);
       ctx.font = `700 ${fs}px Poppins, Inter, system-ui, sans-serif`;
@@ -806,17 +843,18 @@
       ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, fs * 0.04);
     }
     // traînée + balle
+    const BC = ballColor();
     ctx.lineCap = 'round';
     const tr = vis.trail;
     for (let k = 1; k < tr.length; k++) {
-      const a = k / tr.length; ctx.strokeStyle = rgb(pal.halo, a * 0.5); ctx.lineWidth = sim.BR * 1.5 * a;
+      const a = k / tr.length; ctx.strokeStyle = rgb(BC, a * 0.6); ctx.lineWidth = sim.BR * 1.5 * a;
       ctx.beginPath(); ctx.moveTo(tr[k - 1][0], tr[k - 1][1]); ctx.lineTo(tr[k][0], tr[k][1]); ctx.stroke();
     }
     const bx = st.x, by = st.y, BR = sim.BR;
     let g = ctx.createRadialGradient(bx, by, BR * 0.6, bx, by, BR * 3.2);
-    g.addColorStop(0, rgb(pal.halo, .55)); g.addColorStop(1, rgb(pal.halo, 0));
+    g.addColorStop(0, rgb(BC, .55)); g.addColorStop(1, rgb(BC, 0));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR * 3.2, 0, TAU); ctx.fill();
-    const bc = pal.ball, dark = bc.map(v => v * 0.55), light = lerp(bc, [1, 1, 1], 0.55);
+    const bc = BC, dark = bc.map(v => v * 0.55), light = lerp(bc, [1, 1, 1], 0.55);
     g = ctx.createRadialGradient(bx - BR * .35, by - BR * .35, 0, bx, by, BR);
     g.addColorStop(0, rgb(light)); g.addColorStop(0.7, rgb(bc)); g.addColorStop(1, rgb(dark));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR, 0, TAU); ctx.fill();
@@ -829,6 +867,7 @@
     }
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(bx - BR * .38, by - BR * .4, BR * .16, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
     // vignette : on plonge dans le tunnel
     if (sim.DIVE && vis.zoom > 0.02) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -857,6 +896,33 @@
       if (a > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${Math.min(1, a)})`; ctx.fillRect(0, 0, view.width, view.height); }
     }
   }
+  // ---------- Cercle audio de fin ----------
+  let fBuf = null, wBuf = null;
+  function drawOutro(a, W, pal) {
+    const an = graph && graph.analyser; if (!an) return;
+    if (!fBuf) { fBuf = new Uint8Array(an.frequencyBinCount); wBuf = new Uint8Array(an.fftSize); }
+    an.getByteFrequencyData(fBuf); an.getByteTimeDomainData(wBuf);
+    const R = W * 0.2, n = 120, half = n / 2;
+    ctx.save(); ctx.globalAlpha = a; ctx.lineCap = 'round';
+    ctx.strokeStyle = rgb(pal.rings[0], 0.35); ctx.lineWidth = W * 0.003;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.62, 0, TAU); ctx.stroke();
+    ctx.lineWidth = W * 0.0075;
+    for (let k = 0; k < n; k++) {
+      // symétrique gauche / droite, graves en haut
+      const bin = Math.floor((k < half ? k : n - k) / half * fBuf.length * 0.55);
+      const v = Math.pow(fBuf[bin] / 255, 1.4), ang = -Math.PI / 2 + k / n * TAU;
+      const r1 = R * 1.02, r2 = r1 + W * 0.015 + v * W * 0.3;
+      ctx.strokeStyle = rgb(lerp(pal.rings[k % pal.rings.length], [1, 1, 1], 0.15), 0.95);
+      ctx.beginPath(); ctx.moveTo(Math.cos(ang) * r1, Math.sin(ang) * r1); ctx.lineTo(Math.cos(ang) * r2, Math.sin(ang) * r2); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = W * 0.0035; ctx.beginPath();
+    for (let k = 0; k <= 180; k++) {
+      const ang = -Math.PI / 2 + k / 180 * TAU, w = (wBuf[Math.floor(k / 180 * (wBuf.length - 1))] - 128) / 128;
+      const r = R * 0.85 + w * W * 0.07;
+      k ? ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r) : ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    }
+    ctx.closePath(); ctx.stroke(); ctx.restore();
+  }
   function level(t) {
     if (!song || !song.clipLo) return 0;
     const i = Math.floor((passageStart + t) * 10);
@@ -877,6 +943,7 @@
     const comp = actx.createDynamicsCompressor(); comp.threshold.value = -6; comp.ratio.value = 6;
     master.connect(comp); comp.connect(actx.destination);
     recDest = actx.createMediaStreamDestination(); comp.connect(recDest);
+    const analyser = actx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.75; comp.connect(analyser);
     const musicIn = actx.createGain();
     const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.7;
     const inGain = actx.createGain(), dryGain = actx.createGain(), wetGain = actx.createGain(), echoGain = actx.createGain();
@@ -892,7 +959,7 @@
     inGain.connect(musicBus); dryGain.connect(musicBus); wetGain.connect(musicBus); musicBus.connect(master);
     fxBus.connect(master);
     const piano = actx.createPeriodicWave(new Float32Array([0, 0, 0, 0, 0]), new Float32Array([0, 1, .45, .2, .1]));
-    graph = { master, musicIn, lp, inGain, dryGain, wetGain, echoGain, shelf, musicBus, fxBus, piano };
+    graph = { analyser, master, musicIn, lp, inGain, dryGain, wetGain, echoGain, shelf, musicBus, fxBus, piano };
     applyMix(true);
   }
   function makeIR(sec) {
@@ -956,9 +1023,12 @@
   }
   function resizePlan() { const p = new Uint8Array(planLen()); p.set(plan.subarray(0, p.length)); plan = p; }
   function finaleLen() { return Math.max(3, Math.min(8, S.dur * 0.1)); }
+  const outroLen = () => (S.outro && S.dur >= 14) ? 4 : 0;
   function planWindows() {
     const L = planLen(), p = plan.slice(0, L);
-    if ($('finale').checked) p.fill(1, Math.max(0, L - Math.round(finaleLen() * 10)), L);
+    const end = L - Math.round(outroLen() * 10);
+    if ($('finale').checked) p.fill(1, Math.max(0, end - Math.round(finaleLen() * 10)), end);
+    p.fill(0, Math.max(0, end), L);
     const out = [];
     for (let i = 0; i < L;) { if (p[i]) { let j = i; while (j < L && p[j]) j++; out.push([i / 10, j / 10]); i = j; } else i++; }
     return out;
@@ -972,7 +1042,17 @@
     if (song) { const s0 = Math.round(passageStart * 10), clip = song.db.slice(s0, s0 + planLen()); song.clipLo = pct(clip, 20); song.clipHi = pct(clip, 98); }
     windows = S.shape === 'cone' ? planWindows() : [];
     autoRate = 0; simOpt = {};
-    if (windows.length && S.exitStyle === 'plongee') {
+    if (windows.length && S.exitStyle === 'trou') {
+      // les anneaux remplissent l'écran ; on cherche la cadence qui les casse tous avant la fin
+      const avail = Math.hypot(1000, 1000 * 16 / 9) / 2 - 1000 * 0.125 * S.disk;
+      N = Math.max(10, Math.ceil(avail / (3.2 * S.density)));
+      let lo = 2, hi = 300;
+      for (let it = 0; it < 12; it++) {
+        const mid = (lo + hi) / 2;
+        if (countPops(windows, { sp: 3.2, rate: mid }, N) >= N) hi = mid; else lo = mid;
+      }
+      simOpt = { sp: 3.2, rate: hi }; autoRate = hi;
+    } else if (windows.length && S.exitStyle === 'plongee') {
       // plongée : la balle parcourt en tout environ un rayon d'écran -> plus rien à la fin
       const avail = Math.hypot(1000, 1000 * 16 / 9) / 2 - 1000 * 0.125 * S.disk;
       N = Math.max(10, Math.ceil(avail / (3.2 * S.density)));
@@ -1022,6 +1102,7 @@
     updateVisual(Math.max(0, sim.st.t - lastT)); lastT = sim.st.t;
     if (sim.st.gate !== gateOn) { gateOn = sim.st.gate; applyMix(false); }
     draw();
+    if (recording && capTrack) capTrack.requestFrame();
     if (playing) drawPlan();
     if (playing) {
       const left = Math.max(0, S.dur - sim.st.t);
@@ -1031,7 +1112,7 @@
     requestAnimationFrame(frame);
   }
 
-  let recorder = null, chunks = [], mime = '', resultBlob = null, wakeLock = null;
+  let capTrack = null, recorder = null, chunks = [], mime = '', resultBlob = null, wakeLock = null;
   function pickMime() {
     if (!window.MediaRecorder) return '';
     for (const m of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'])
@@ -1054,10 +1135,12 @@
     }
     if (rec) {
       mime = pickMime();
-      const stream = view.captureStream(60);
+      let stream = view.captureStream(0);
+      capTrack = stream.getVideoTracks()[0];
+      if (!capTrack || typeof capTrack.requestFrame !== 'function') { stream = view.captureStream(60); capTrack = null; }
       recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
       chunks = [];
-      recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: S.res >= 1080 ? 12e6 : 8e6 } : undefined);
+      recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: S.res >= 1080 ? 24e6 : 12e6 } : undefined);
       recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
       recorder.onstop = finishRecording;
       recorder.start(500);
@@ -1206,6 +1289,7 @@
   });
 
   const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText', 'beat', 'fade', 'exitFx'];
+  const planOpts = ['outro'];
   const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'exitStyle', 'rate', 'speed', 'ballSize', 'disk', 'density', 'gap', 'rot', 'seed', 'res'];
   live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter', 'fade'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); saveSettings(); }));
   structural.forEach(id => {
@@ -1238,6 +1322,7 @@
     video:    { exitStyle: 'plongee', exitFx: 1, palette: 'Coucher de soleil', shake: 0, zoom: .6, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
     neon:     { exitStyle: 'ondes', exitFx: 1.2, palette: 'Néon', shake: .2, zoom: .4, flash: 1, beat: .85, react: .9, scroll: .6, speed: 1.1, ballSize: 1.5, disk: 1.8, trail: 28, parts: 1.4, density: 1, thick: .5, gap: 1.05, rot: 1.4, rate: 0, verb: .45, echo: .25, bass: 6, inVol: .5, muffle: .65, popSnd: 'cristal', follow: '0' },
     doux:     { exitStyle: 'ondes', exitFx: 0.6, palette: 'Glacier', shake: 0, zoom: .15, flash: .3, beat: .2, react: .3, scroll: .1, speed: .8, ballSize: 1.6, disk: 2.1, trail: 30, parts: .7, density: 1.1, thick: .6, gap: .9, rot: .6, rate: 0, verb: .65, echo: .35, bass: 2, inVol: .6, muffle: .45, popSnd: 'bulles', follow: '0' },
+    rubis:    { exitStyle: 'trou', exitFx: .8, palette: 'Rubis', shake: .1, zoom: 0, flash: .4, beat: .45, react: .4, scroll: 0, speed: 1.15, ballSize: .8, disk: 1.8, trail: 24, parts: 1.2, density: 1, thick: .62, gap: 1.05, rot: .9, rate: 0, verb: .4, echo: .2, bass: 5, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
     explosif: { exitStyle: 'ondes', exitFx: 1.5, palette: 'Braise', shake: .85, zoom: .6, flash: 1.3, beat: 1, react: .8, scroll: .3, speed: 1.4, ballSize: 1.7, disk: 1.8, trail: 14, parts: 1.8, density: 1, thick: .7, gap: 1.1, rot: 1.2, rate: 0, verb: .3, echo: .1, bass: 9, inVol: .45, muffle: .75, popSnd: 'clic', follow: '0' },
   };
   function markPreset(name) { $('presets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === name))); }
@@ -1251,7 +1336,8 @@
   });
 
   // ---------- Réglages gardés en mémoire (sur cet appareil) ----------
-  const KEEP = [...live, ...structural.filter(k => k !== 'dur'), 'finale'];
+  const KEEP = [...live, ...structural.filter(k => k !== 'dur'), 'finale', 'outro'];
+  $('outro').addEventListener('change', () => { if (!playing) rebuild(); saveSettings(); });
   function saveSettings() {
     try {
       const o = { palette: paletteName };
