@@ -70,6 +70,8 @@
   .field output { color: var(--gold); font-variant-numeric: tabular-nums; }
   input[type=range] { width: 100%; accent-color: var(--gold); }
   select { width: 100%; font: 500 15px var(--body); background: #0f0c15; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  h3 { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 4px 0 -4px; }
+  input[type=text] { width: 100%; font: 500 15px var(--body); background: #0f0c15; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; }
   .hint { font-size: 13px; color: var(--muted); margin: 0; }
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -138,19 +140,86 @@
           <input id="volMus" type="range" min="0" max="1.5" step="0.05" value="0.9">
         </div>
         <div class="field">
-          <div class="top"><label for="volFx">Volume des effets</label><output id="volFxOut"></output></div>
+          <div class="top"><label for="volFx">Volume des sons</label><output id="volFxOut"></output></div>
           <input id="volFx" type="range" min="0" max="1.5" step="0.05" value="0.5">
         </div>
+      </div>
+      <h3>Balle dans le cercle</h3>
+      <div class="grid">
         <div class="field">
-          <div class="top"><label for="fxAmt">Effet dedans / dehors</label><output id="fxAmtOut"></output></div>
-          <input id="fxAmt" type="range" min="0" max="2" step="0.1" value="1">
+          <div class="top"><label for="inVol">Volume</label><output id="inVolOut"></output></div>
+          <input id="inVol" type="range" min="0" max="1" step="0.05" value="0.55">
+        </div>
+        <div class="field">
+          <div class="top"><label for="muffle">Son étouffé</label><output id="muffleOut"></output></div>
+          <input id="muffle" type="range" min="0" max="1" step="0.05" value="0.6">
         </div>
       </div>
-      <p class="hint">Dans le cercle, la musique est plus douce et étouffée. Quand la balle sort, elle est pleine, avec de la réverb. « Effet » règle l'écart entre les deux.</p>
+      <h3>Balle dehors (drop)</h3>
+      <div class="grid">
+        <div class="field">
+          <div class="top"><label for="verb">Réverb</label><output id="verbOut"></output></div>
+          <input id="verb" type="range" min="0" max="1" step="0.05" value="0.4">
+        </div>
+        <div class="field">
+          <div class="top"><label for="echo">Écho</label><output id="echoOut"></output></div>
+          <input id="echo" type="range" min="0" max="1" step="0.05" value="0.15">
+        </div>
+        <div class="field">
+          <div class="top"><label for="bass">Basses</label><output id="bassOut"></output></div>
+          <input id="bass" type="range" min="0" max="12" step="1" value="4">
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label class="top" for="popSnd">Son des anneaux qui éclatent</label>
+          <select id="popSnd">
+            <option value="cristal" selected>Cristal</option>
+            <option value="bulles">Bulles</option>
+            <option value="clic">Clics</option>
+            <option value="aucun">Aucun</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="top" for="bounceSnd">Son des rebonds</label>
+          <select id="bounceSnd">
+            <option value="auto" selected>Auto (toc, ou piano sans musique)</option>
+            <option value="toc">Toc</option>
+            <option value="piano">Notes de piano</option>
+            <option value="aucun">Aucun</option>
+          </select>
+        </div>
+      </div>
     </section>
 
     <section>
-      <h2>Look <small>étape 3</small></h2>
+      <h2>Drops <small>étape 3</small></h2>
+      <div class="grid">
+        <div class="field">
+          <label class="top" for="follow">Quand la balle sort</label>
+          <select id="follow">
+            <option value="0" selected>Le cône reste en place</option>
+            <option value="1">Le cône tourne vers la balle</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="top"><label for="shake">Secousse de l'écran</label><output id="shakeOut"></output></div>
+          <input id="shake" type="range" min="0" max="1" step="0.05" value="0.3">
+        </div>
+        <div class="field">
+          <div class="top"><label for="zoom">Zoom sur les drops</label><output id="zoomOut"></output></div>
+          <input id="zoom" type="range" min="0" max="1" step="0.05" value="0.35">
+        </div>
+        <div class="field">
+          <div class="top"><label for="flash">Flash lumineux</label><output id="flashOut"></output></div>
+          <input id="flash" type="range" min="0" max="1.5" step="0.05" value="0.6">
+        </div>
+      </div>
+      <p class="hint">Le zoom rapproche la caméra tant que la balle est dehors. La secousse et le flash suivent les anneaux qui éclatent.</p>
+    </section>
+
+    <section>
+      <h2>Look <small>étape 4</small></h2>
       <div class="field">
         <span class="top">Couleurs</span>
         <div class="swatches" id="swatches"></div>
@@ -164,8 +233,36 @@
           </select>
         </div>
         <div class="field">
+          <div class="top"><label for="react">Anneaux qui réagissent au son</label><output id="reactOut"></output></div>
+          <input id="react" type="range" min="0" max="1" step="0.05" value="0.5">
+        </div>
+        <div class="field">
+          <div class="top"><label for="scroll">Défilement des couleurs</label><output id="scrollOut"></output></div>
+          <input id="scroll" type="range" min="0" max="1" step="0.05" value="0.2">
+        </div>
+        <div class="field">
           <div class="top"><label for="speed">Vitesse de la balle</label><output id="speedOut"></output></div>
           <input id="speed" type="range" min="0.5" max="2" step="0.05" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="ballSize">Taille de la balle</label><output id="ballSizeOut"></output></div>
+          <input id="ballSize" type="range" min="0.6" max="1.8" step="0.05" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="trail">Traînée</label><output id="trailOut"></output></div>
+          <input id="trail" type="range" min="0" max="40" step="1" value="18">
+        </div>
+        <div class="field">
+          <div class="top"><label for="parts">Particules</label><output id="partsOut"></output></div>
+          <input id="parts" type="range" min="0" max="2" step="0.1" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="density">Écart entre les anneaux</label><output id="densityOut"></output></div>
+          <input id="density" type="range" min="0.7" max="2" step="0.05" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="thick">Épaisseur des traits</label><output id="thickOut"></output></div>
+          <input id="thick" type="range" min="0.4" max="1.6" step="0.05" value="0.65">
         </div>
         <div class="field">
           <div class="top"><label for="gap">Largeur de l'ouverture</label><output id="gapOut"></output></div>
@@ -182,8 +279,25 @@
         <div class="field">
           <label class="top" for="res">Qualité de la vidéo</label>
           <select id="res">
-            <option value="720">720 × 1280 (plus fluide)</option>
+            <option value="720" selected>720 × 1280 (plus fluide)</option>
             <option value="1080">1080 × 1920 (plus net)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Texte <small>étape 5</small></h2>
+      <div class="grid">
+        <div class="field">
+          <label class="top" for="topText">Texte en haut de la vidéo</label>
+          <input id="topText" type="text" maxlength="60" placeholder="ex. Space Song – Beach House">
+        </div>
+        <div class="field">
+          <label class="top" for="counter">Compteur au centre</label>
+          <select id="counter">
+            <option value="1" selected>Afficher</option>
+            <option value="0">Cacher</option>
           </select>
         </div>
       </div>
@@ -214,23 +328,36 @@
     'Menthe':            { rings: [[.40,.85,.45],[.55,.97,.6],[.32,.75,.4]], ball: [.94,.92,1], halo: [.7,.59,1] },
     'Glacier':           { rings: [[.45,.85,1],[.25,.5,1],[.85,.95,1],[.25,.5,1]], ball: [1,1,1], halo: [.6,.85,1] },
     'Braise':            { rings: [[1,.25,.15],[1,.55,.1],[1,.85,.3],[1,.55,.1]], ball: [1,.95,.8], halo: [1,.6,.2] },
+    'Néon':              { rings: [[.1,1,.9],[1,.2,.8],[.45,.3,1],[1,.2,.8]], ball: [1,1,1], halo: [.3,1,.9] },
+    'Nuit':              { rings: [[.85,.85,.95],[.42,.42,.58],[.97,.97,1],[.42,.42,.58]], ball: [1,.95,.8], halo: [1,.9,.6] },
   };
   let paletteName = 'Coucher de soleil';
 
   // ---------- Réglages ----------
   const S = {
     get dur() { return +$('dur').value; }, get sens() { return +$('sens').value; }, get maxlen() { return +$('maxlen').value; },
-    get volMus() { return +$('volMus').value; }, get volFx() { return +$('volFx').value; }, get fxAmt() { return +$('fxAmt').value; },
+    get volMus() { return +$('volMus').value; }, get volFx() { return +$('volFx').value; },
+    get inVol() { return +$('inVol').value; }, get muffle() { return +$('muffle').value; }, get verb() { return +$('verb').value; },
+    get echo() { return +$('echo').value; }, get bass() { return +$('bass').value; },
+    get follow() { return $('follow').value === '1'; }, get shake() { return +$('shake').value; }, get zoom() { return +$('zoom').value; },
+    get flash() { return +$('flash').value; }, get react() { return +$('react').value; }, get scroll() { return +$('scroll').value; },
+    get ballSize() { return +$('ballSize').value; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
+    get density() { return +$('density').value; }, get thick() { return +$('thick').value; },
+    get counter() { return $('counter').value === '1'; }, get topText() { return $('topText').value.trim(); },
     get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
     get rot() { return +$('rot').value; }, get seed() { return +$('seed').value; }, get res() { return +$('res').value; },
   };
   const fmt = {
     dur: v => v + ' s', sens: v => v < 0.85 ? 'moins' : v > 1.15 ? 'plus' : 'normal',
     maxlen: v => v + ' s', volMus: v => Math.round(v * 100) + ' %', volFx: v => Math.round(v * 100) + ' %',
-    fxAmt: v => v == 0 ? 'aucun' : v < 0.8 ? 'léger' : v > 1.3 ? 'fort' : 'moyen',
+    inVol: v => Math.round(v * 100) + ' %', muffle: v => Math.round(v * 100) + ' %', verb: v => Math.round(v * 100) + ' %',
+    echo: v => Math.round(v * 100) + ' %', bass: v => '+' + v + ' dB', shake: v => Math.round(v * 100) + ' %',
+    zoom: v => Math.round(v * 100) + ' %', flash: v => Math.round(v * 100) + ' %', react: v => Math.round(v * 100) + ' %',
+    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), trail: v => v == 0 ? 'aucune' : v,
+    parts: v => '× ' + (+v).toFixed(1), density: v => '× ' + (+v).toFixed(2), thick: v => '× ' + (+v).toFixed(2),
     speed: v => '× ' + (+v).toFixed(2), gap: v => Math.round(v * 180 / Math.PI) + '°', rot: v => '× ' + (+v).toFixed(1), seed: v => '#' + v,
   };
-  function showOutputs() { for (const k in fmt) $(k + 'Out').textContent = fmt[k]($(k).value); }
+  function showOutputs() { for (const k in fmt) if ($(k + 'Out')) $(k + 'Out').textContent = fmt[k]($(k).value); }
 
   // ---------- Aléatoire reproductible ----------
   function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -337,7 +464,8 @@
   function makeSim(W, N, wins, cb) {
     const CONE = S.shape === 'cone';
     const k = CONE ? { r0: .125, sp: .0056, br: .022, v: .62 } : { r0: .16, sp: .0115, br: .011, v: .9 };
-    const R0 = W * k.r0, SP = W * k.sp, BR = W * k.br, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const R0 = W * k.r0, SP = W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const FOLLOW = S.follow;
     const SYNC = CONE && wins.length > 0;
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
@@ -364,10 +492,23 @@
       if (SYNC) {
         if (win) st.gate = true;
         else if (st.gate && st.first < N && Math.hypot(st.x, st.y) < ringR(st.first) - BR * 1.5) st.gate = false;
-        if (win && st.first < N) {
+        if (win && st.first < N && FOLLOW) {
+          // ancien mode : le cône pivote vers la balle
           const diff = wrap(hitAngle() - ringA(st.first));
           st.rot += Math.max(-9 * dt, Math.min(9 * dt, diff * 12 * dt));
-        } else st.rot += 0.42 * rotMul * dt;
+        } else {
+          st.rot += 0.42 * rotMul * dt;
+          if (win && st.first < N) {
+            // le cône reste en place : la balle file vers l'ouverture
+            const Rf = ringR(st.first);
+            if (Math.hypot(st.x, st.y) < Rf) {
+              const a = ringA(st.first), want = Math.atan2(Math.sin(a) * Rf - st.y, Math.cos(a) * Rf - st.x);
+              const cur = Math.atan2(st.vy, st.vx), sp = Math.hypot(st.vx, st.vy);
+              const na = cur + Math.max(-11 * dt, Math.min(11 * dt, wrap(want - cur)));
+              st.vx = Math.cos(na) * sp; st.vy = Math.sin(na) * sp;
+            }
+          }
+        }
       } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
       const lag = st.first - st.offset;
       if (CONE) st.offset += Math.min(lag, (45 + 20 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
@@ -414,24 +555,26 @@
   // ---------- Rendu ----------
   let sim, vis, ringCols;
   function lerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
-  function buildColors(N) {
-    const pal = PALETTES[paletteName].rings, period = S.shape === 'cone' ? 140 : 80, out = new Array(N);
-    for (let i = 0; i < N; i++) { const x = (i / period) % pal.length, k = Math.floor(x); out[i] = lerp(pal[k], pal[(k + 1) % pal.length], x - k); }
-    return out;
+  function ringColor(i) {
+    const pal = PALETTES[paletteName].rings, period = S.shape === 'cone' ? 140 : 80;
+    const f = (i + colorShift) / period, x = ((f % pal.length) + pal.length) % pal.length, k = Math.floor(x);
+    return lerp(pal[k], pal[(k + 1) % pal.length], x - k);
   }
+  let colorShift = 0;
+  function buildColors() { return { length: Infinity }; } // couleurs calculées à la volée (défilement)
   const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
 
-  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0 }; }
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0 }; }
   function onPop(i, r, rot, g) {
-    const W = sim.W, n = sim.CONE ? 10 : 30;
+    const W = sim.W, n = Math.round((sim.CONE ? 10 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
       const a = rot + g / 2 + Math.random() * (TAU - g), sp = W * (0.1 + Math.random() * 0.35);
-      vis.particles.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, vx: Math.cos(a) * sp + (Math.random() - .5) * W * .15, vy: Math.sin(a) * sp + (Math.random() - .5) * W * .15, life: 1, decay: 1 + Math.random() * 1.4, i });
+      vis.particles.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, vx: Math.cos(a) * sp + (Math.random() - .5) * W * .15, vy: Math.sin(a) * sp + (Math.random() - .5) * W * .15, life: 1, decay: 1 + Math.random() * 1.4, col });
     }
     if (vis.particles.length > 1200) vis.particles.splice(0, vis.particles.length - 1200);
-    if (sim.CONE) for (let k = 0; k < 4; k++) vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.75 + Math.random() * 0.22), life: 2.5 + Math.random() * 3, i, ph: Math.random() * TAU });
+    if (sim.CONE) for (let k = 0; k < Math.round(4 * S.parts); k++) vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.75 + Math.random() * 0.22), life: 2.5 + Math.random() * 3, col, ph: Math.random() * TAU });
     if (vis.dust.length > 900) vis.dust.splice(0, vis.dust.length - 900);
-    vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06);
+    vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06); vis.shake = Math.min(1, vis.shake + 0.12);
     sfx.pop();
   }
   function onBounce() { sfx.bounce(); }
@@ -442,31 +585,38 @@
     vis.particles = vis.particles.filter(p => p.life > 0);
     for (const d of vis.dust) { d.a += dt * 0.25; d.life -= dt; }
     vis.dust = vis.dust.filter(d => d.life > 0);
-    vis.pulse = Math.max(0, vis.pulse - dt * 5); vis.flash = Math.max(0, vis.flash - dt * 1.6);
-    vis.trail.push([sim.st.x, sim.st.y]); if (vis.trail.length > 18) vis.trail.shift();
+    vis.pulse = Math.max(0, vis.pulse - dt * 5); vis.flash = Math.max(0, vis.flash - dt * 1.6); vis.shake = Math.max(0, vis.shake - dt * 3);
+    const out = sim.SYNC ? (sim.st.gate ? 1 : 0) : 0;
+    vis.zoom += (out - vis.zoom) * (1 - Math.exp(-dt * (out ? 5 : 2)));
+    colorShift += dt * S.scroll * 60;
+    vis.trail.push([sim.st.x, sim.st.y]); while (vis.trail.length > Math.max(1, S.trail)) vis.trail.shift();
   }
 
   function draw() {
     // la simulation vit dans un repère de 1000 px de large, mis à l'échelle de la vidéo
     const sc = view.width / 1000, W = 1000, H = view.height / sc, st = sim.st, pal = PALETTES[paletteName];
-    const LW = Math.max(1.5 / sc, W * (sim.CONE ? 0.0036 : 0.0042));
+    const lvl = level(st.t);
+    const LW = Math.max(1.5 / sc, sim.SP * S.thick * (sim.CONE ? 1 : 0.55) * (1 + S.react * lvl * 0.5));
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#030205'; ctx.fillRect(0, 0, view.width, view.height);
-    ctx.setTransform(sc, 0, 0, sc, view.width / 2, view.height / 2);
-    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash;
+    const z = sc * (1 + S.zoom * 0.22 * vis.zoom), shk = S.shake * vis.shake * W * 0.014;
+    const ox = (Math.random() - .5) * 2 * shk * sc, oy = (Math.random() - .5) * 2 * shk * sc;
+    ctx.setTransform(z, 0, 0, z, view.width / 2 + ox, view.height / 2 + oy);
+    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, glow = S.react * lvl * 0.35;
     ctx.lineWidth = LW; ctx.lineCap = 'butt';
     for (let i = st.first; i < sim.N; i++) {
       const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
-      const rot = sim.ringA(i), b = Math.min(0.85, fl * Math.max(0, 1 - (r - sim.R0) / (W * 0.6)));
-      ctx.strokeStyle = rgb(b > 0.01 ? lerp(ringCols[i], [1, 1, .9], b) : ringCols[i]);
+      const rot = sim.ringA(i), b = Math.min(0.85, fl * Math.max(0, 1 - (r - sim.R0) / (W * 0.6)) + glow);
+      const c = ringColor(i);
+      ctx.strokeStyle = rgb(b > 0.01 ? lerp(c, [1, 1, .9], b) : c);
       ctx.beginPath(); ctx.arc(0, 0, r, rot + sim.gap[i] / 2, rot - sim.gap[i] / 2 + TAU); ctx.stroke();
     }
-    for (const p of vis.particles) { ctx.fillStyle = rgb(ringCols[p.i] || pal.rings[0], Math.max(0, Math.min(1, p.life))); ctx.fillRect(p.x - LW, p.y - LW, LW * 2, LW * 2); }
+    for (const p of vis.particles) { ctx.fillStyle = rgb(p.col, Math.max(0, Math.min(1, p.life))); ctx.fillRect(p.x - LW, p.y - LW, LW * 2, LW * 2); }
     if (sim.CONE) {
       ctx.fillStyle = '#030205'; ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
       for (const d of vis.dust) {
         const al = Math.min(1, d.life / 1.5) * (0.5 + 0.5 * Math.sin(d.ph + st.t * 6));
-        ctx.fillStyle = rgb(ringCols[d.i] || pal.rings[0], al * 0.9);
+        ctx.fillStyle = rgb(d.col, al * 0.9);
         ctx.beginPath(); ctx.arc(Math.cos(d.a) * d.r, Math.sin(d.a) * d.r, W * 0.0015, 0, TAU); ctx.fill();
       }
       if (st.first < sim.N) {
@@ -483,11 +633,14 @@
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, sim.R0, 0, TAU); ctx.fill();
     }
     // compteur
-    const fs = W * (sim.CONE ? 0.085 : 0.105) * (1 + vis.pulse * 0.08);
-    ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const txt = String(sim.N - st.first);
-    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(txt, 3, 4 + fs * 0.04);
-    ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, fs * 0.04);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (S.counter) {
+      const fs = W * (sim.CONE ? 0.085 : 0.105) * (1 + vis.pulse * 0.08);
+      ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`;
+      const txt = String(sim.N - st.first);
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(txt, 3, 4 + fs * 0.04);
+      ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, fs * 0.04);
+    }
     // traînée + balle
     ctx.lineCap = 'round';
     const tr = vis.trail;
@@ -502,6 +655,22 @@
     g = ctx.createRadialGradient(bx - BR * .3, by - BR * .3, 0, bx, by, BR);
     g.addColorStop(0, 'rgb(255,255,230)'); g.addColorStop(1, rgb(pal.ball));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR, 0, TAU); ctx.fill();
+    // texte en haut (hors caméra : ne zoome pas, ne tremble pas)
+    const tt = S.topText;
+    if (tt) {
+      ctx.setTransform(sc, 0, 0, sc, view.width / 2, 0);
+      let fs = W * 0.058; ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`;
+      const w = ctx.measureText(tt).width; if (w > W * 0.86) { fs *= W * 0.86 / w; ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`; }
+      const y = H * 0.16;
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(tt, 3, y + 4);
+      ctx.fillStyle = '#fff'; ctx.fillText(tt, 0, y);
+    }
+  }
+  function level(t) {
+    if (!song || !song.clipLo) return 0;
+    const i = Math.floor((passageStart + t) * 10);
+    const v = song.db[Math.min(song.db.length - 1, Math.max(0, i))];
+    return Math.max(0, Math.min(1, (v - song.clipLo) / (song.clipHi - song.clipLo + 1e-6))) ** 1.5;
   }
 
   // ---------- Audio ----------
@@ -519,14 +688,20 @@
     recDest = actx.createMediaStreamDestination(); comp.connect(recDest);
     const musicIn = actx.createGain();
     const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.7;
-    const inGain = actx.createGain(), dryGain = actx.createGain(), wetGain = actx.createGain();
-    const conv = actx.createConvolver(); conv.buffer = makeIR(1.8);
+    const inGain = actx.createGain(), dryGain = actx.createGain(), wetGain = actx.createGain(), echoGain = actx.createGain();
+    const conv = actx.createConvolver(); conv.buffer = makeIR(2.2);
+    const shelf = actx.createBiquadFilter(); shelf.type = 'lowshelf'; shelf.frequency.value = 120;
+    const delay = actx.createDelay(1.5), fb = actx.createGain(), dlp = actx.createBiquadFilter();
+    delay.delayTime.value = 0.34; fb.gain.value = 0.38; dlp.type = 'lowpass'; dlp.frequency.value = 3500;
     const musicBus = actx.createGain(), fxBus = actx.createGain();
-    musicIn.connect(lp); lp.connect(inGain); musicIn.connect(dryGain); musicIn.connect(conv); conv.connect(wetGain);
+    musicIn.connect(lp); lp.connect(inGain);
+    musicIn.connect(shelf); shelf.connect(dryGain);
+    shelf.connect(conv); conv.connect(wetGain);
+    shelf.connect(echoGain); echoGain.connect(delay); delay.connect(dlp); dlp.connect(fb); fb.connect(delay); dlp.connect(musicBus);
     inGain.connect(musicBus); dryGain.connect(musicBus); wetGain.connect(musicBus); musicBus.connect(master);
     fxBus.connect(master);
     const piano = actx.createPeriodicWave(new Float32Array([0, 0, 0, 0, 0]), new Float32Array([0, 1, .45, .2, .1]));
-    graph = { master, musicIn, lp, inGain, dryGain, wetGain, musicBus, fxBus, piano };
+    graph = { master, musicIn, lp, inGain, dryGain, wetGain, echoGain, shelf, musicBus, fxBus, piano };
     applyMix(true);
   }
   function makeIR(sec) {
@@ -537,23 +712,26 @@
   let gateOn = false;
   function applyMix(instant) {
     if (!graph) return;
-    const e = S.fxAmt, now = actx.currentTime, out = (song && sim && sim.SYNC) ? (gateOn ? 1 : 0) : 1;
+    const now = actx.currentTime, out = (song && sim && sim.SYNC) ? (gateOn ? 1 : 0) : 1;
     const set = (p, v, tc) => instant ? p.setValueAtTime(v, now) : p.setTargetAtTime(v, now, tc);
     const tc = out ? 0.04 : 0.25;
-    graph.lp.frequency.setValueAtTime(1600 / (1 + e), now);
-    set(graph.inGain.gain, (1 - out) * (1 - 0.45 * Math.min(1, e)), tc);
-    set(graph.dryGain.gain, out * (1 + 0.15 * e) + (e === 0 ? 0 : 0), tc);
-    set(graph.wetGain.gain, out * 0.35 * e, tc);
+    graph.lp.frequency.setValueAtTime(250 + 14000 * Math.pow(1 - S.muffle, 2.5), now);
+    set(graph.inGain.gain, (1 - out) * S.inVol, tc);
+    set(graph.dryGain.gain, out, tc);
+    set(graph.wetGain.gain, out * S.verb * 0.9, tc);
+    set(graph.echoGain.gain, out * S.echo * 0.7, tc);
+    set(graph.shelf.gain, out * S.bass, tc);
     graph.musicBus.gain.setValueAtTime(S.volMus, now);
     graph.fxBus.gain.setValueAtTime(S.volFx, now);
   }
   const sfx = {
     lastPop: -1, streak: 0, lastBounce: -1, note: 0,
-    tone(f, dur, vol, type, decay) {
+    tone(f, dur, vol, type, decay, glide) {
       if (!actx || !playing) return;
       const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
       if (type === 'piano') o.setPeriodicWave(graph.piano); else o.type = type;
-      o.frequency.value = f;
+      o.frequency.setValueAtTime(f, t);
+      if (glide) o.frequency.exponentialRampToValueAtTime(f * glide, t + dur);
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
       g.gain.setTargetAtTime(0.0001, t + 0.004, 1 / decay);
       o.connect(g); g.connect(graph.fxBus); o.start(t); o.stop(t + dur);
@@ -562,13 +740,17 @@
       if (!playing) return;
       const t = sim.st.t; if (t - this.lastPop < 0.03) return;
       this.streak = t - this.lastPop < 0.15 ? this.streak + 1 : 0; this.lastPop = t;
-      if (song) this.tone(1400 * Math.pow(2, Math.min(this.streak, 24) / 24), 0.1, 0.08, 'sine', 45);
-      else this.tone(2093, 0.2, 0.04, 'sine', 18);
+      const kind = $('popSnd').value, up = Math.pow(2, Math.min(this.streak, 24) / 24);
+      if (kind === 'cristal') this.tone(1400 * up, 0.12, 0.08, 'sine', 40);
+      else if (kind === 'bulles') this.tone(520 * up + Math.random() * 80, 0.12, 0.12, 'sine', 30, 0.55);
+      else if (kind === 'clic') this.tone(2600, 0.04, 0.06, 'square', 120);
     },
     bounce() {
       if (!playing) return;
-      const t = sim.st.t;
-      if (song) { this.tone(330, 0.12, 0.2, 'triangle', 30); return; }
+      const t = sim.st.t; let kind = $('bounceSnd').value;
+      if (kind === 'auto') kind = song ? 'toc' : 'piano';
+      if (kind === 'aucun') return;
+      if (kind === 'toc') { this.tone(330, 0.12, 0.2, 'triangle', 30); return; }
       if (t - this.lastBounce < 0.07) return; this.lastBounce = t;
       this.tone(freq(FUR_ELISE[this.note++ % FUR_ELISE.length]), 1.6, 0.25, 'piano', 3);
     },
@@ -579,6 +761,7 @@
   let N = 1500;
 
   function rebuild() {
+    if (song) { const s0 = Math.round(passageStart * 10), clip = song.db.slice(s0, s0 + Math.round(S.dur * 10)); song.clipLo = pct(clip, 20); song.clipHi = pct(clip, 98); }
     windows = (song && S.shape === 'cone') ? findDrops() : [];
     N = windows.length ? countPops(windows) + 300 : 1500;
     resetSim();
@@ -738,9 +921,9 @@
     }
   });
 
-  const live = ['volMus', 'volFx', 'fxAmt'];
-  const structural = ['dur', 'sens', 'maxlen', 'shape', 'speed', 'gap', 'rot', 'seed', 'res'];
-  live.forEach(id => $(id).addEventListener('input', () => { showOutputs(); applyMix(true); }));
+  const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText'];
+  const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'speed', 'ballSize', 'density', 'gap', 'rot', 'seed', 'res'];
+  live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); }));
   structural.forEach(id => {
     $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
     $(id).addEventListener('change', () => { if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false; rebuild(); });
