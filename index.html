@@ -239,7 +239,7 @@
           <input id="shake" type="range" min="0" max="1" step="0.05" value="0.3">
         </div>
         <div class="field">
-          <div class="top"><label for="zoom">Zoom sur les drops</label><output id="zoomOut"></output></div>
+          <div class="top"><label for="zoom">Zoom de la caméra</label><output id="zoomOut"></output></div>
           <input id="zoom" type="range" min="0" max="1" step="0.05" value="0.35">
         </div>
         <div class="field">
@@ -249,7 +249,8 @@
         <div class="field">
           <label class="top" for="exitStyle">Style de la sortie</label>
           <select id="exitStyle">
-            <option value="video" selected>Comme ta vidéo (grande lueur)</option>
+            <option value="plongee" selected>Plongée dans le tunnel (la caméra suit la balle)</option>
+            <option value="video">Collée au bord (grande lueur)</option>
             <option value="ondes">Ondes et étincelles</option>
           </select>
         </div>
@@ -532,9 +533,9 @@
     const k = CONE ? { r0: .125, sp: .0056, br: .022, v: .62 } : { r0: .16, sp: .0115, br: .011, v: .9 };
     const R0 = W * k.r0 * (CONE ? S.disk : 1);
     // écart auto : au départ les anneaux remplissent juste l'écran, puis il y en a de moins en moins
-    const SP = (CONE && opt.spacingN) ? Math.min(14, Math.max(1.6, (Math.hypot(W, W * 16 / 9) / 2 - R0) / opt.spacingN)) * S.density : W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
-    const EXIT_VIDEO = S.exitStyle === 'video', FOLLOW = S.follow, RATE = CONE ? (opt.rate || S.rate || 50) : 1e9;
-    const SYNC = CONE && wins.length > 0;
+    const SP = (CONE && opt.sp) ? W / 1000 * opt.sp * S.density : (CONE && opt.spacingN) ? Math.min(14, Math.max(1.6, (Math.hypot(W, W * 16 / 9) / 2 - R0) / opt.spacingN)) * S.density : W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const EXIT_VIDEO = S.exitStyle === 'video', FOLLOW = S.follow, RATE = (CONE && S.exitStyle !== 'plongee') ? (opt.rate || S.rate || 50) : 1e9;
+    const SYNC = CONE && wins.length > 0, DIVE = SYNC && S.exitStyle === 'plongee', VOUT = (opt.vout || 300) * W / 1000;
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
     const a0 = rnd() * TAU;
@@ -559,7 +560,7 @@
       const win = SYNC && inWin(st.t);
       if (SYNC) {
         if (win) st.gate = true;
-        else if (st.gate && st.first < N && Math.hypot(st.x, st.y) < ringR(st.first) - BR * 1.5) st.gate = false;
+        else if (st.gate && st.first < N && Math.hypot(st.x, st.y) < R0 - BR * 1.5) st.gate = false;
         if (win && st.first < N && FOLLOW) {
           // ancien mode : le cône pivote vers la balle
           const diff = wrap(hitAngle() - ringA(st.first));
@@ -579,10 +580,22 @@
         }
       } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
       const lag = st.first - st.offset;
-      if (CONE) st.offset += Math.min(lag, (55 + 70 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
+      if (DIVE) { /* plongée : les anneaux restent en place, le trou grandit depuis le centre */ }
+      else if (CONE) st.offset += Math.min(lag, (55 + 70 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
       const d0 = Math.hypot(st.x, st.y) || 1e-9;
       if (CONE && SYNC && d0 > R0) {
-        if (win && st.first < N) {
+        if (DIVE) {
+          const nx = st.x / d0, ny = st.y / d0;
+          if (win && st.first < N) {
+            // plongée : la balle file vers l'extérieur au milieu du cône et casse chaque anneau traversé
+            let vr = st.vx * nx + st.vy * ny, vt = -st.vx * ny + st.vy * nx;
+            const empty = d0 < ringR(st.first) - BR * 1.5;
+            vr += ((empty ? Math.max(VOUT, 0.9 * W) : VOUT) - vr) * Math.min(1, (empty ? 4 : 8) * dt);
+            const e = wrap(ringA(st.first) - Math.atan2(st.y, st.x));
+            vt += (e * d0 * 5 - vt) * Math.min(1, 8 * dt);
+            st.vx = nx * vr - ny * vt; st.vy = ny * vr + nx * vt;
+          } else { st.vx = -nx * SPEED * 1.6; st.vy = -ny * SPEED * 1.6; } // retour au centre
+        } else if (win && st.first < N) {
           // sortie : la balle reste dehors, dans le cône, juste au bord du cercle
           let a, hr, k, c;
           if (EXIT_VIDEO) {
@@ -610,9 +623,9 @@
             if (st.t - st.lastPop < 1 / RATE) break; // cadence des éclats limitée
             const rot = ringA(i); st.first++; st.pops++; st.lastPop = st.t; cb && cb.pop(i, r, rot, gap[i]); continue;
           }
-        } else if (d > r - BR) {
-          const nx = st.x / d, ny = st.y / d;
-          st.x = nx * (r - BR); st.y = ny * (r - BR);
+        } else if (d > (SYNC ? R0 : r) - BR && (!SYNC || d <= R0)) {
+          const rb = SYNC ? R0 : r, nx = st.x / d, ny = st.y / d;
+          st.x = nx * (rb - BR); st.y = ny * (rb - BR);
           const vn = st.vx * nx + st.vy * ny;
           if (vn > 0) {
             st.vx -= 2 * vn * nx; st.vy -= 2 * vn * ny;
@@ -625,17 +638,18 @@
       }
       if (st.first >= N) {
         const d = Math.hypot(st.x, st.y) || 1e-9;
-        if (d > R0 - BR) {
+        if (d > R0) { st.vx = -st.x / d * SPEED; st.vy = -st.y / d * SPEED; }
+        else if (d > R0 - BR) {
           const nx = st.x / d, ny = st.y / d; st.x = nx * (R0 - BR); st.y = ny * (R0 - BR);
           const vn = st.vx * nx + st.vy * ny; if (vn > 0) { st.vx -= 2 * vn * nx; st.vy -= 2 * vn * ny; }
         }
       }
     }
-    return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, W };
+    return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, DIVE, W };
   }
 
-  function countPops(wins, opt) {
-    const sim = makeSim(1000, 20000, wins, null, opt), steps = Math.round(S.dur / STEP);
+  function countPops(wins, opt, cap = 20000) {
+    const sim = makeSim(1000, cap, wins, null, opt), steps = Math.round(S.dur / STEP);
     for (let i = 0; i < steps; i++) sim.step(STEP);
     return sim.st.pops;
   }
@@ -652,7 +666,7 @@
   function buildColors() { return { length: Infinity }; } // couleurs calculées à la volée (défilement)
   const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
 
-  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [], bloom: 0, wasOut: false }; }
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [], bloom: 0, wasOut: false, camX: 0, camY: 0, camZ: 1 }; }
   function onPop(i, r, rot, g) {
     const W = sim.W, n = Math.round((sim.CONE ? 4 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
@@ -699,7 +713,7 @@
     const isOut = sim.SYNC && sim.st.gate;
     if (isOut && !vis.wasOut) {
       vis.bloom = 1;
-      if (sim.CONE && S.exitStyle === 'video') {
+      if (sim.CONE && S.exitStyle !== 'ondes') {
         const pal = PALETTES[paletteName];
         for (let k = 0; k < Math.round(160 * S.parts); k++) {
           const depth = Math.min(0.75, Math.abs(gauss(Math.random)) * 0.12);
@@ -708,13 +722,18 @@
       }
     }
     vis.wasOut = isOut;
+    // caméra : en plongée, elle suit la balle et se rapproche
+    const dive = sim.DIVE ? vis.zoom : 0, kc = 1 - Math.exp(-dt * 3);
+    vis.camX += (sim.st.x * 0.8 * dive - vis.camX) * kc;
+    vis.camY += (sim.st.y * 0.8 * dive - vis.camY) * kc;
+    vis.camZ += (1 + S.zoom * 0.8 * dive - vis.camZ) * kc;
     vis.bloom = Math.max(0, vis.bloom - dt * 1.7);
     if (song && song.beats && playing) {
       const bi = Math.floor((passageStart + sim.st.t) * 10);
       if (bi !== vis.beatIdx) { if (song.beats[bi]) vis.bump = 1; vis.beatIdx = bi; }
     }
     colorShift += dt * (S.scroll * 60 + (S.exitStyle === 'ondes' ? vis.zoom * 150 * S.exitFx : 0));
-    vis.trail.push([sim.st.x, sim.st.y]); while (vis.trail.length > Math.max(1, S.trail)) vis.trail.shift();
+    vis.trail.push([sim.st.x, sim.st.y]); while (vis.trail.length > Math.max(1, S.trail * (1 + (sim.DIVE ? vis.zoom : 0)))) vis.trail.shift();
   }
 
   function draw() {
@@ -724,16 +743,16 @@
     const LW = Math.max(1.5 / sc, sim.SP * S.thick * (sim.CONE ? 1 : 0.55) * (1 + S.react * lvl * 0.5));
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#030205'; ctx.fillRect(0, 0, view.width, view.height);
-    const z = sc * (1 + S.zoom * 0.22 * vis.zoom + S.beat * 0.045 * vis.bump), shk = (S.shake * vis.shake * 0.014 + S.exitFx * vis.zoom * 0.004) * W;
+    const z = sc * vis.camZ * (1 + (sim.DIVE ? 0 : S.zoom * 0.22 * vis.zoom) + S.beat * 0.045 * vis.bump), shk = (S.shake * vis.shake * 0.014 + S.exitFx * vis.zoom * 0.004) * W;
     const ox = (Math.random() - .5) * 2 * shk * sc, oy = (Math.random() - .5) * 2 * shk * sc;
-    ctx.setTransform(z, 0, 0, z, view.width / 2 + ox, view.height / 2 + oy);
-    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, warm = S.exitStyle === 'video' ? S.exitFx * (0.55 * vis.zoom + 0.6 * vis.bloom) : 0, glow = S.react * lvl * 0.35 + S.beat * 0.25 * vis.bump + S.exitFx * vis.zoom * 0.12;
+    ctx.setTransform(z, 0, 0, z, view.width / 2 + ox - vis.camX * z, view.height / 2 + oy - vis.camY * z);
+    const maxR = Math.hypot(W, H) / 2 / (z / sc) + Math.hypot(vis.camX, vis.camY) + 4, fl = vis.flash * S.flash, innerR = st.first < sim.N ? Math.max(sim.R0, sim.ringR(st.first)) : sim.R0, warm = S.exitStyle !== 'ondes' ? S.exitFx * (0.55 * vis.zoom + 0.6 * vis.bloom) : 0, glow = S.react * lvl * 0.35 + S.beat * 0.25 * vis.bump + S.exitFx * vis.zoom * 0.12;
     ctx.lineWidth = LW; ctx.lineCap = 'butt';
     for (let i = st.first; i < sim.N; i++) {
       const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
-      const rot = sim.ringA(i), b = Math.min(0.85, fl * Math.max(0, 1 - (r - sim.R0) / (W * 0.6)) + glow);
+      const rot = sim.ringA(i), b = Math.min(sim.DIVE ? 0.35 : 0.85, fl * Math.max(0, 1 - (r - innerR) / (W * 0.6)) + glow);
       let c = ringColor(i);
-      if (warm > 0.01) { const f = warm * Math.max(0, 1 - (r - sim.R0) / (W * 0.55)); if (f > 0.01) c = lerp(c, [1, .82, .35], Math.min(0.9, f)); }
+      if (warm > 0.01) { const f = warm * Math.max(0, 1 - (r - innerR) / (W * (sim.DIVE ? 0.28 : 0.55))); if (f > 0.01) c = lerp(c, [1, .78, .3], Math.min(sim.DIVE ? 0.5 : 0.9, f)); }
       ctx.strokeStyle = rgb(b > 0.01 ? lerp(c, [1, 1, .9], b) : c);
       ctx.beginPath(); ctx.arc(0, 0, r, rot + sim.gap[i] / 2, rot - sim.gap[i] / 2 + TAU); ctx.stroke();
     }
@@ -743,15 +762,15 @@
       ctx.strokeStyle = rgb(lerp(w.col, [1, 1, 1], 0.5), w.life * 0.7); ctx.lineWidth = LW * (1.5 + 2.5 * w.life);
       ctx.beginPath(); ctx.arc(0, 0, w.r, 0, TAU); ctx.stroke();
     }
-    const glowA = S.exitFx * (S.exitStyle === 'video' ? 0.85 * vis.bloom + 0.3 * vis.zoom : 0.25 * vis.bloom);
+    const glowA = S.exitFx * (S.exitStyle === 'plongee' ? 0.55 * vis.bloom + 0.15 * vis.zoom : S.exitStyle !== 'ondes' ? 0.85 * vis.bloom + 0.3 * vis.zoom : 0.25 * vis.bloom);
     if (glowA > 0.01) {
-      const pal = PALETTES[paletteName], outer = sim.R0 + W * (0.35 + 0.9 * vis.bloom);
-      const g = ctx.createRadialGradient(0, 0, sim.R0 * 0.95, 0, 0, outer);
+      const pal = PALETTES[paletteName], inner = innerR * 0.97, outer = innerR + W * (0.35 + 0.9 * vis.bloom);
+      const g = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
       g.addColorStop(0, `rgba(255,248,215,${Math.min(1, glowA)})`);
       g.addColorStop(0.35, rgb(lerp(pal.halo, [1, 1, 1], 0.3), Math.min(1, glowA * 0.55)));
       g.addColorStop(1, rgb(pal.halo, 0));
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, outer, 0, TAU); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, outer, 0, TAU); ctx.arc(0, 0, inner, 0, TAU, true); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
     if (sim.CONE) {
@@ -810,6 +829,14 @@
     }
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(bx - BR * .38, by - BR * .4, BR * .16, 0, TAU); ctx.fill();
+    // vignette : on plonge dans le tunnel
+    if (sim.DIVE && vis.zoom > 0.02) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const vw = view.width, vh = view.height, g2 = ctx.createRadialGradient(vw / 2, vh / 2, vw * 0.35, vw / 2, vh / 2, Math.hypot(vw, vh) / 2);
+      g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, `rgba(0,0,0,${0.6 * vis.zoom})`);
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, vw, vh);
+      ctx.setTransform(z, 0, 0, z, view.width / 2 + ox - vis.camX * z, view.height / 2 + oy - vis.camY * z);
+    }
     for (const p of vis.sparks) {
       ctx.fillStyle = rgb(p.col, Math.max(0, Math.min(1, p.life)));
       const z = W * 0.006 * (0.5 + p.life); ctx.fillRect(p.x - z / 2, p.y - z / 2, z, z);
@@ -945,7 +972,18 @@
     if (song) { const s0 = Math.round(passageStart * 10), clip = song.db.slice(s0, s0 + planLen()); song.clipLo = pct(clip, 20); song.clipHi = pct(clip, 98); }
     windows = S.shape === 'cone' ? planWindows() : [];
     autoRate = 0; simOpt = {};
-    if (windows.length) {
+    if (windows.length && S.exitStyle === 'plongee') {
+      // plongée : la balle parcourt en tout environ un rayon d'écran -> plus rien à la fin
+      const avail = Math.hypot(1000, 1000 * 16 / 9) / 2 - 1000 * 0.125 * S.disk;
+      N = Math.max(10, Math.ceil(avail / (3.2 * S.density)));
+      // vitesse la plus lente qui casse tous les anneaux avant la fin
+      let lo = 30, hi = 3000;
+      for (let it = 0; it < 13; it++) {
+        const mid = (lo + hi) / 2;
+        if (countPops(windows, { sp: 3.2, vout: mid }, N) >= N) hi = mid; else lo = mid;
+      }
+      simOpt = { sp: 3.2, vout: hi };
+    } else if (windows.length) {
       // vitesse auto : environ 260 anneaux en tout, pour qu'on voie l'écran se vider
       const outT = windows.reduce((s, w) => s + w[1] - w[0], 0);
       const rate = S.rate || (autoRate = Math.min(120, Math.max(25, 260 / Math.max(0.5, outT * 0.85))));
@@ -1197,7 +1235,7 @@
 
   // ---------- Styles en un clic ----------
   const PRESETS = {
-    video:    { exitStyle: 'video', exitFx: 1, palette: 'Coucher de soleil', shake: 0, zoom: 0, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
+    video:    { exitStyle: 'plongee', exitFx: 1, palette: 'Coucher de soleil', shake: 0, zoom: .6, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
     neon:     { exitStyle: 'ondes', exitFx: 1.2, palette: 'Néon', shake: .2, zoom: .4, flash: 1, beat: .85, react: .9, scroll: .6, speed: 1.1, ballSize: 1.5, disk: 1.8, trail: 28, parts: 1.4, density: 1, thick: .5, gap: 1.05, rot: 1.4, rate: 0, verb: .45, echo: .25, bass: 6, inVol: .5, muffle: .65, popSnd: 'cristal', follow: '0' },
     doux:     { exitStyle: 'ondes', exitFx: 0.6, palette: 'Glacier', shake: 0, zoom: .15, flash: .3, beat: .2, react: .3, scroll: .1, speed: .8, ballSize: 1.6, disk: 2.1, trail: 30, parts: .7, density: 1.1, thick: .6, gap: .9, rot: .6, rate: 0, verb: .65, echo: .35, bass: 2, inVol: .6, muffle: .45, popSnd: 'bulles', follow: '0' },
     explosif: { exitStyle: 'ondes', exitFx: 1.5, palette: 'Braise', shake: .85, zoom: .6, flash: 1.3, beat: 1, react: .8, scroll: .3, speed: 1.4, ballSize: 1.7, disk: 1.8, trail: 14, parts: 1.8, density: 1, thick: .7, gap: 1.1, rot: 1.2, rate: 0, verb: .3, echo: .1, bass: 9, inVol: .45, muffle: .75, popSnd: 'clic', follow: '0' },
