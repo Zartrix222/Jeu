@@ -76,6 +76,10 @@
   .brush[aria-pressed=true] { background: var(--pink); border-color: var(--pink); color: #2a0020; }
   label.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
   label.check input { width: 18px; height: 18px; accent-color: var(--gold); margin-top: 1px; flex: none; }
+  .presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .presets button { display: grid; gap: 4px; text-align: left; padding: 12px 14px; line-height: 1.2; }
+  .presets button span { font-weight: 400; font-size: 13px; color: var(--muted); }
+  .presets button[aria-pressed=true] { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
   .row { display: flex; flex-wrap: wrap; gap: 10px; }
   .hint { font-size: 13px; color: var(--muted); margin: 0; }
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -103,6 +107,16 @@
   </div>
 
   <div class="controls">
+    <section>
+      <h2>Style en un clic <small>pour démarrer</small></h2>
+      <div class="presets" id="presets">
+        <button data-preset="video"><b>Comme la vidéo</b><span>orange · rose · violet</span></button>
+        <button data-preset="neon"><b>Néon</b><span>vif, pulse fort</span></button>
+        <button data-preset="doux"><b>Doux</b><span>calme, son planant</span></button>
+        <button data-preset="explosif"><b>Explosif</b><span>secousses, basses</span></button>
+      </div>
+      <p class="hint">Un style règle tout d'un coup. Tu peux ensuite ajuster chaque réglage en dessous. Tes réglages sont gardés pour la prochaine fois.</p>
+    </section>
     <section>
       <h2>Musique <small>étape 1</small></h2>
       <label class="file">
@@ -142,6 +156,7 @@
       <div class="row">
         <button id="brushOut" class="brush" aria-pressed="true">Peindre : sortie</button>
         <button id="brushIn" class="brush" aria-pressed="false">Peindre : dedans</button>
+        <button id="planUndo" disabled>Annuler</button>
         <button id="planAuto">Détection auto</button>
         <button id="planClear">Tout effacer</button>
       </div>
@@ -230,6 +245,13 @@
         <div class="field">
           <div class="top"><label for="flash">Flash lumineux</label><output id="flashOut"></output></div>
           <input id="flash" type="range" min="0" max="1.5" step="0.05" value="0.6">
+        </div>
+        <div class="field">
+          <div class="top"><label for="beat">Pulsation sur les basses</label><output id="beatOut"></output></div>
+          <input id="beat" type="range" min="0" max="1" step="0.05" value="0.5">
+        </div>
+        <div class="field" style="align-content:end">
+          <label class="check"><input id="fade" type="checkbox" checked> Fondu au noir au début et à la fin</label>
         </div>
       </div>
       <div class="grid">
@@ -368,7 +390,7 @@
     get echo() { return +$('echo').value; }, get bass() { return +$('bass').value; },
     get follow() { return $('follow').value === '1'; }, get shake() { return +$('shake').value; }, get zoom() { return +$('zoom').value; },
     get flash() { return +$('flash').value; }, get react() { return +$('react').value; }, get scroll() { return +$('scroll').value; },
-    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
+    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get beat() { return +$('beat').value; }, get fade() { return $('fade').checked; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
     get density() { return +$('density').value; }, get thick() { return +$('thick').value; },
     get counter() { return $('counter').value === '1'; }, get topText() { return $('topText').value.trim(); },
     get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
@@ -380,7 +402,7 @@
     inVol: v => Math.round(v * 100) + ' %', muffle: v => Math.round(v * 100) + ' %', verb: v => Math.round(v * 100) + ' %',
     echo: v => Math.round(v * 100) + ' %', bass: v => '+' + v + ' dB', shake: v => Math.round(v * 100) + ' %',
     zoom: v => Math.round(v * 100) + ' %', flash: v => Math.round(v * 100) + ' %', react: v => Math.round(v * 100) + ' %',
-    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), disk: v => '× ' + (+v).toFixed(2), rate: v => v == 0 ? 'auto' + (autoRate ? ' (' + Math.round(autoRate) + ' / s)' : '') : v + ' / s', trail: v => v == 0 ? 'aucune' : v,
+    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), disk: v => '× ' + (+v).toFixed(2), beat: v => Math.round(v * 100) + ' %', rate: v => v == 0 ? 'auto' + (autoRate ? ' (' + Math.round(autoRate) + ' / s)' : '') : v + ' / s', trail: v => v == 0 ? 'aucune' : v,
     parts: v => '× ' + (+v).toFixed(1), density: v => '× ' + (+v).toFixed(2), thick: v => '× ' + (+v).toFixed(2),
     speed: v => '× ' + (+v).toFixed(2), gap: v => Math.round(v * 180 / Math.PI) + '°', rot: v => '× ' + (+v).toFixed(1), seed: v => '#' + v,
   };
@@ -424,7 +446,13 @@
     for (let i = 0; i < db.length; i++) strength[i] = r1[i] + r2[i];
     const core = db.length > 200 ? strength.slice(50, -50) : strength;
     const thr = Math.max(6, pct(core, 99));
-    return { buffer, db, strength, thr, length: buffer.duration };
+    // coups de basse : montées brusques du grave, espacées d'au moins 0,3 s
+    const flux = new Float32Array(dl.length);
+    for (let i = 1; i < dl.length; i++) flux[i] = Math.max(0, dl[i] - dl[i - 1]);
+    const fthr = Math.max(1.5, pct(flux, 88)), beats = new Uint8Array(dl.length);
+    for (let i = 1, last = -9; i < dl.length - 1; i++)
+      if (flux[i] > fthr && flux[i] >= flux[i - 1] && flux[i] >= flux[i + 1] && i - last >= 3) { beats[i] = 1; last = i; }
+    return { buffer, db, strength, thr, beats, length: buffer.duration };
   }
   function dropPeaks(strength, thr, from, to, spacing = 40) {
     const cand = [];
@@ -605,7 +633,7 @@
   function buildColors() { return { length: Infinity }; } // couleurs calculées à la volée (défilement)
   const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
 
-  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0 }; }
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1 }; }
   function onPop(i, r, rot, g) {
     const W = sim.W, n = Math.round((sim.CONE ? 4 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
@@ -633,6 +661,11 @@
     vis.pulse = Math.max(0, vis.pulse - dt * 5); vis.flash = Math.max(0, vis.flash - dt * 1.6); vis.shake = Math.max(0, vis.shake - dt * 3);
     const out = sim.SYNC ? (sim.st.gate ? 1 : 0) : 0;
     vis.zoom += (out - vis.zoom) * (1 - Math.exp(-dt * (out ? 5 : 2)));
+    vis.bump = Math.max(0, vis.bump - dt * 6);
+    if (song && song.beats && playing) {
+      const bi = Math.floor((passageStart + sim.st.t) * 10);
+      if (bi !== vis.beatIdx) { if (song.beats[bi]) vis.bump = 1; vis.beatIdx = bi; }
+    }
     colorShift += dt * S.scroll * 60;
     vis.trail.push([sim.st.x, sim.st.y]); while (vis.trail.length > Math.max(1, S.trail)) vis.trail.shift();
   }
@@ -644,10 +677,10 @@
     const LW = Math.max(1.5 / sc, sim.SP * S.thick * (sim.CONE ? 1 : 0.55) * (1 + S.react * lvl * 0.5));
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#030205'; ctx.fillRect(0, 0, view.width, view.height);
-    const z = sc * (1 + S.zoom * 0.22 * vis.zoom), shk = S.shake * vis.shake * W * 0.014;
+    const z = sc * (1 + S.zoom * 0.22 * vis.zoom + S.beat * 0.045 * vis.bump), shk = S.shake * vis.shake * W * 0.014;
     const ox = (Math.random() - .5) * 2 * shk * sc, oy = (Math.random() - .5) * 2 * shk * sc;
     ctx.setTransform(z, 0, 0, z, view.width / 2 + ox, view.height / 2 + oy);
-    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, glow = S.react * lvl * 0.35;
+    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, glow = S.react * lvl * 0.35 + S.beat * 0.25 * vis.bump;
     ctx.lineWidth = LW; ctx.lineCap = 'butt';
     for (let i = st.first; i < sim.N; i++) {
       const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
@@ -722,6 +755,11 @@
       const y = H * 0.16;
       ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(tt, 3, y + 4);
       ctx.fillStyle = '#fff'; ctx.fillText(tt, 0, y);
+    }
+    // fondu au noir
+    if (S.fade && playing) {
+      const a = Math.max(0, 1 - st.t / 0.6, 1 - (S.dur - st.t) / 1.5);
+      if (a > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${Math.min(1, a)})`; ctx.fillRect(0, 0, view.width, view.height); }
     }
   }
   function level(t) {
@@ -1002,14 +1040,20 @@
     plan.fill(brush, Math.max(0, a - 2), Math.min(L, b + 3)); lastCell = c;
     windows = S.shape === 'cone' ? planWindows() : []; drawPlan(); drawTimeline();
   }
-  pl.addEventListener('pointerdown', e => { if (playing) return; painting = true; lastCell = -1; pl.setPointerCapture(e.pointerId); paintAt(e); });
+  const undoStack = [];
+  function pushUndo() { undoStack.push(plan.slice()); if (undoStack.length > 40) undoStack.shift(); $('planUndo').disabled = false; }
+  $('planUndo').addEventListener('click', () => {
+    if (playing || !undoStack.length) return;
+    plan = undoStack.pop(); resizePlan(); $('planUndo').disabled = !undoStack.length; rebuild();
+  });
+  pl.addEventListener('pointerdown', e => { if (playing) return; pushUndo(); painting = true; lastCell = -1; pl.setPointerCapture(e.pointerId); paintAt(e); });
   pl.addEventListener('pointermove', e => { if (painting) paintAt(e); });
   pl.addEventListener('pointerup', () => { if (painting) { painting = false; rebuild(); } });
   function setBrush(v) { brush = v; $('brushOut').setAttribute('aria-pressed', String(v === 1)); $('brushIn').setAttribute('aria-pressed', String(v === 0)); }
   $('brushOut').addEventListener('click', () => setBrush(1));
   $('brushIn').addEventListener('click', () => setBrush(0));
-  $('planAuto').addEventListener('click', () => { if (playing) return; autoPlan(); rebuild(); });
-  $('planClear').addEventListener('click', () => { if (playing) return; plan = new Uint8Array(planLen()); rebuild(); });
+  $('planAuto').addEventListener('click', () => { if (playing) return; pushUndo(); autoPlan(); rebuild(); });
+  $('planClear').addEventListener('click', () => { if (playing) return; pushUndo(); plan = new Uint8Array(planLen()); rebuild(); });
   $('finale').addEventListener('change', () => { if (!playing) rebuild(); });
 
   // ---------- Événements ----------
@@ -1055,15 +1099,15 @@
     }
   });
 
-  const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText'];
+  const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText', 'beat', 'fade'];
   const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'rate', 'speed', 'ballSize', 'disk', 'density', 'gap', 'rot', 'seed', 'res'];
-  live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); }));
+  live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter', 'fade'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); saveSettings(); }));
   structural.forEach(id => {
     $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
     $(id).addEventListener('change', () => {
       if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false;
       if (id === 'dur') resizePlan(); else if (id === 'sens' || id === 'maxlen' || id === 'shape') autoPlan();
-      rebuild();
+      rebuild(); saveSettings(); markPreset(null);
     });
   });
 
@@ -1073,9 +1117,53 @@
     b.type = 'button'; b.title = name; b.setAttribute('aria-label', name);
     b.style.background = `conic-gradient(${c.map(x => rgb(x)).join(',')})`;
     b.setAttribute('aria-pressed', String(name === paletteName));
-    b.addEventListener('click', () => { paletteName = name; sw.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); ringCols = buildColors(N); });
+    b.addEventListener('click', () => setPalette(name));
     sw.appendChild(b);
   }
+  function setPalette(name) {
+    if (!PALETTES[name]) return;
+    paletteName = name;
+    sw.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.title === name)));
+    saveSettings();
+  }
+
+  // ---------- Styles en un clic ----------
+  const PRESETS = {
+    video:    { palette: 'Coucher de soleil', shake: .3, zoom: .35, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
+    neon:     { palette: 'Néon', shake: .2, zoom: .4, flash: 1, beat: .85, react: .9, scroll: .6, speed: 1.1, ballSize: 1.5, disk: 1.8, trail: 28, parts: 1.4, density: 1, thick: .5, gap: 1.05, rot: 1.4, rate: 0, verb: .45, echo: .25, bass: 6, inVol: .5, muffle: .65, popSnd: 'cristal', follow: '0' },
+    doux:     { palette: 'Glacier', shake: 0, zoom: .15, flash: .3, beat: .2, react: .3, scroll: .1, speed: .8, ballSize: 1.6, disk: 2.1, trail: 30, parts: .7, density: 1.1, thick: .6, gap: .9, rot: .6, rate: 0, verb: .65, echo: .35, bass: 2, inVol: .6, muffle: .45, popSnd: 'bulles', follow: '0' },
+    explosif: { palette: 'Braise', shake: .85, zoom: .6, flash: 1.3, beat: 1, react: .8, scroll: .3, speed: 1.4, ballSize: 1.7, disk: 1.8, trail: 14, parts: 1.8, density: 1, thick: .7, gap: 1.1, rot: 1.2, rate: 0, verb: .3, echo: .1, bass: 9, inVol: .45, muffle: .75, popSnd: 'clic', follow: '0' },
+  };
+  function markPreset(name) { $('presets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === name))); }
+  $('presets').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const pr = PRESETS[b.dataset.preset];
+    if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false;
+    for (const k in pr) if (k !== 'palette' && $(k)) $(k).value = pr[k];
+    setPalette(pr.palette); showOutputs(); applyMix(true); rebuild(); saveSettings();
+    markPreset(b.dataset.preset);
+  });
+
+  // ---------- Réglages gardés en mémoire (sur cet appareil) ----------
+  const KEEP = [...live, ...structural.filter(k => k !== 'dur'), 'finale'];
+  function saveSettings() {
+    try {
+      const o = { palette: paletteName };
+      for (const k of KEEP) o[k] = $(k).type === 'checkbox' ? $(k).checked : $(k).value;
+      localStorage.setItem('studio-anneaux', JSON.stringify(o));
+    } catch (e) {}
+  }
+  try {
+    const o = JSON.parse(localStorage.getItem('studio-anneaux') || 'null');
+    if (o) {
+      for (const k of KEEP) if (k in o && $(k)) { if ($(k).type === 'checkbox') $(k).checked = !!o[k]; else $(k).value = o[k]; }
+      setPalette(o.palette);
+    }
+  } catch (e) {}
+  $('finale').addEventListener('change', saveSettings);
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); $('play').click(); }
+  });
 
   showOutputs(); rebuild(); requestAnimationFrame(frame);
   if (document.fonts) { document.fonts.load('700 40px Poppins').catch(() => {}); document.fonts.ready.then(drawTimeline); }
