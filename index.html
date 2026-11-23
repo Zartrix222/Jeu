@@ -247,6 +247,13 @@
           <input id="flash" type="range" min="0" max="1.5" step="0.05" value="0.6">
         </div>
         <div class="field">
+          <label class="top" for="exitStyle">Style de la sortie</label>
+          <select id="exitStyle">
+            <option value="video" selected>Comme ta vidéo (grande lueur)</option>
+            <option value="ondes">Ondes et étincelles</option>
+          </select>
+        </div>
+        <div class="field">
           <div class="top"><label for="exitFx">Animation pendant la sortie</label><output id="exitFxOut"></output></div>
           <input id="exitFx" type="range" min="0" max="1.5" step="0.05" value="1">
         </div>
@@ -394,7 +401,7 @@
     get echo() { return +$('echo').value; }, get bass() { return +$('bass').value; },
     get follow() { return $('follow').value === '1'; }, get shake() { return +$('shake').value; }, get zoom() { return +$('zoom').value; },
     get flash() { return +$('flash').value; }, get react() { return +$('react').value; }, get scroll() { return +$('scroll').value; },
-    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get beat() { return +$('beat').value; }, get exitFx() { return +$('exitFx').value; }, get fade() { return $('fade').checked; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
+    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get beat() { return +$('beat').value; }, get exitFx() { return +$('exitFx').value; }, get exitStyle() { return $('exitStyle').value; }, get fade() { return $('fade').checked; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
     get density() { return +$('density').value; }, get thick() { return +$('thick').value; },
     get counter() { return $('counter').value === '1'; }, get topText() { return $('topText').value.trim(); },
     get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
@@ -526,7 +533,7 @@
     const R0 = W * k.r0 * (CONE ? S.disk : 1);
     // écart auto : au départ les anneaux remplissent juste l'écran, puis il y en a de moins en moins
     const SP = (CONE && opt.spacingN) ? Math.min(14, Math.max(1.6, (Math.hypot(W, W * 16 / 9) / 2 - R0) / opt.spacingN)) * S.density : W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
-    const FOLLOW = S.follow, RATE = CONE ? (opt.rate || S.rate || 50) : 1e9;
+    const EXIT_VIDEO = S.exitStyle === 'video', FOLLOW = S.follow, RATE = CONE ? (opt.rate || S.rate || 50) : 1e9;
     const SYNC = CONE && wins.length > 0;
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
@@ -577,10 +584,18 @@
       if (CONE && SYNC && d0 > R0) {
         if (win && st.first < N) {
           // sortie : la balle reste dehors, dans le cône, juste au bord du cercle
-          const a = ringA(st.first) + Math.sin(st.t * 2.7) * 0.16 + Math.sin(st.t * 7.3) * 0.06;
-          const hr = R0 + BR * (1.8 + 0.9 * Math.sin(st.t * 5.1) + 0.3 * Math.sin(st.t * 11.7));
-          st.vx += (90 * (Math.cos(a) * hr - st.x) - 7 * st.vx) * dt;
-          st.vy += (90 * (Math.sin(a) * hr - st.y) - 7 * st.vy) * dt;
+          let a, hr, k, c;
+          if (EXIT_VIDEO) {
+            a = ringA(st.first) + Math.sin(st.t * 0.9) * 0.05;
+            hr = R0 + BR * (1.2 + 0.9 * Math.abs(Math.sin(st.t * TAU * 5.5)));
+            k = 900; c = 55;
+          } else {
+            a = ringA(st.first) + Math.sin(st.t * 2.7) * 0.16 + Math.sin(st.t * 7.3) * 0.06;
+            hr = R0 + BR * (1.8 + 0.9 * Math.sin(st.t * 5.1) + 0.3 * Math.sin(st.t * 11.7));
+            k = 90; c = 7;
+          }
+          st.vx += (k * (Math.cos(a) * hr - st.x) - c * st.vx) * dt;
+          st.vy += (k * (Math.sin(a) * hr - st.y) - c * st.vy) * dt;
         } else {
           // fin de la sortie : retour direct dans le cercle
           st.vx = -st.x / d0 * SPEED; st.vy = -st.y / d0 * SPEED;
@@ -637,7 +652,7 @@
   function buildColors() { return { length: Infinity }; } // couleurs calculées à la volée (défilement)
   const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
 
-  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [] }; }
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0, bump: 0, beatIdx: -1, waves: [], sparks: [], bloom: 0, wasOut: false }; }
   function onPop(i, r, rot, g) {
     const W = sim.W, n = Math.round((sim.CONE ? 4 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
@@ -653,7 +668,7 @@
     if (vis.dust.length > 5000) vis.dust.splice(0, vis.dust.length - 5000);
     vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06); vis.shake = Math.min(1, vis.shake + 0.12);
     const fx = S.exitFx;
-    if (fx > 0) {
+    if (fx > 0 && S.exitStyle === 'ondes') {
       vis.waves.push({ r, life: 1, col }); if (vis.waves.length > 40) vis.waves.shift();
       const bx = sim.st.x, by = sim.st.y, ba = Math.atan2(by, bx), pal = PALETTES[paletteName];
       for (let k = 0; k < Math.round(3 * fx); k++) {
@@ -680,11 +695,25 @@
     const out = sim.SYNC ? (sim.st.gate ? 1 : 0) : 0;
     vis.zoom += (out - vis.zoom) * (1 - Math.exp(-dt * (out ? 5 : 2)));
     vis.bump = Math.max(0, vis.bump - dt * 6);
+    // grande lueur au moment où la balle sort
+    const isOut = sim.SYNC && sim.st.gate;
+    if (isOut && !vis.wasOut) {
+      vis.bloom = 1;
+      if (sim.CONE && S.exitStyle === 'video') {
+        const pal = PALETTES[paletteName];
+        for (let k = 0; k < Math.round(160 * S.parts); k++) {
+          const depth = Math.min(0.75, Math.abs(gauss(Math.random)) * 0.12);
+          vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.97 - depth), life: 8 + Math.random() * 20, col: lerp(pal.rings[k % pal.rings.length], [1, 1, 1], Math.random() * 0.4), ph: Math.random() * TAU, sp: (Math.random() - .5) * 0.25, sz: 0.6 + Math.random() * 1.2 });
+        }
+      }
+    }
+    vis.wasOut = isOut;
+    vis.bloom = Math.max(0, vis.bloom - dt * 1.7);
     if (song && song.beats && playing) {
       const bi = Math.floor((passageStart + sim.st.t) * 10);
       if (bi !== vis.beatIdx) { if (song.beats[bi]) vis.bump = 1; vis.beatIdx = bi; }
     }
-    colorShift += dt * (S.scroll * 60 + vis.zoom * 150 * S.exitFx);
+    colorShift += dt * (S.scroll * 60 + (S.exitStyle === 'ondes' ? vis.zoom * 150 * S.exitFx : 0));
     vis.trail.push([sim.st.x, sim.st.y]); while (vis.trail.length > Math.max(1, S.trail)) vis.trail.shift();
   }
 
@@ -698,12 +727,13 @@
     const z = sc * (1 + S.zoom * 0.22 * vis.zoom + S.beat * 0.045 * vis.bump), shk = (S.shake * vis.shake * 0.014 + S.exitFx * vis.zoom * 0.004) * W;
     const ox = (Math.random() - .5) * 2 * shk * sc, oy = (Math.random() - .5) * 2 * shk * sc;
     ctx.setTransform(z, 0, 0, z, view.width / 2 + ox, view.height / 2 + oy);
-    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, glow = S.react * lvl * 0.35 + S.beat * 0.25 * vis.bump + S.exitFx * vis.zoom * 0.12;
+    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash * S.flash, warm = S.exitStyle === 'video' ? S.exitFx * (0.55 * vis.zoom + 0.6 * vis.bloom) : 0, glow = S.react * lvl * 0.35 + S.beat * 0.25 * vis.bump + S.exitFx * vis.zoom * 0.12;
     ctx.lineWidth = LW; ctx.lineCap = 'butt';
     for (let i = st.first; i < sim.N; i++) {
       const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
       const rot = sim.ringA(i), b = Math.min(0.85, fl * Math.max(0, 1 - (r - sim.R0) / (W * 0.6)) + glow);
-      const c = ringColor(i);
+      let c = ringColor(i);
+      if (warm > 0.01) { const f = warm * Math.max(0, 1 - (r - sim.R0) / (W * 0.55)); if (f > 0.01) c = lerp(c, [1, .82, .35], Math.min(0.9, f)); }
       ctx.strokeStyle = rgb(b > 0.01 ? lerp(c, [1, 1, .9], b) : c);
       ctx.beginPath(); ctx.arc(0, 0, r, rot + sim.gap[i] / 2, rot - sim.gap[i] / 2 + TAU); ctx.stroke();
     }
@@ -712,6 +742,17 @@
     for (const w of vis.waves) {
       ctx.strokeStyle = rgb(lerp(w.col, [1, 1, 1], 0.5), w.life * 0.7); ctx.lineWidth = LW * (1.5 + 2.5 * w.life);
       ctx.beginPath(); ctx.arc(0, 0, w.r, 0, TAU); ctx.stroke();
+    }
+    const glowA = S.exitFx * (S.exitStyle === 'video' ? 0.85 * vis.bloom + 0.3 * vis.zoom : 0.25 * vis.bloom);
+    if (glowA > 0.01) {
+      const pal = PALETTES[paletteName], outer = sim.R0 + W * (0.35 + 0.9 * vis.bloom);
+      const g = ctx.createRadialGradient(0, 0, sim.R0 * 0.95, 0, 0, outer);
+      g.addColorStop(0, `rgba(255,248,215,${Math.min(1, glowA)})`);
+      g.addColorStop(0.35, rgb(lerp(pal.halo, [1, 1, 1], 0.3), Math.min(1, glowA * 0.55)));
+      g.addColorStop(1, rgb(pal.halo, 0));
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, outer, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
     }
     if (sim.CONE) {
       ctx.fillStyle = '#030205'; ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
@@ -1127,7 +1168,7 @@
   });
 
   const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText', 'beat', 'fade', 'exitFx'];
-  const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'rate', 'speed', 'ballSize', 'disk', 'density', 'gap', 'rot', 'seed', 'res'];
+  const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'exitStyle', 'rate', 'speed', 'ballSize', 'disk', 'density', 'gap', 'rot', 'seed', 'res'];
   live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter', 'fade'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); saveSettings(); }));
   structural.forEach(id => {
     $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
@@ -1156,10 +1197,10 @@
 
   // ---------- Styles en un clic ----------
   const PRESETS = {
-    video:    { exitFx: 1, palette: 'Coucher de soleil', shake: .3, zoom: .35, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
-    neon:     { exitFx: 1.2, palette: 'Néon', shake: .2, zoom: .4, flash: 1, beat: .85, react: .9, scroll: .6, speed: 1.1, ballSize: 1.5, disk: 1.8, trail: 28, parts: 1.4, density: 1, thick: .5, gap: 1.05, rot: 1.4, rate: 0, verb: .45, echo: .25, bass: 6, inVol: .5, muffle: .65, popSnd: 'cristal', follow: '0' },
-    doux:     { exitFx: 0.6, palette: 'Glacier', shake: 0, zoom: .15, flash: .3, beat: .2, react: .3, scroll: .1, speed: .8, ballSize: 1.6, disk: 2.1, trail: 30, parts: .7, density: 1.1, thick: .6, gap: .9, rot: .6, rate: 0, verb: .65, echo: .35, bass: 2, inVol: .6, muffle: .45, popSnd: 'bulles', follow: '0' },
-    explosif: { exitFx: 1.5, palette: 'Braise', shake: .85, zoom: .6, flash: 1.3, beat: 1, react: .8, scroll: .3, speed: 1.4, ballSize: 1.7, disk: 1.8, trail: 14, parts: 1.8, density: 1, thick: .7, gap: 1.1, rot: 1.2, rate: 0, verb: .3, echo: .1, bass: 9, inVol: .45, muffle: .75, popSnd: 'clic', follow: '0' },
+    video:    { exitStyle: 'video', exitFx: 1, palette: 'Coucher de soleil', shake: 0, zoom: 0, flash: .6, beat: .5, react: .5, scroll: .2, speed: 1, ballSize: 1.75, disk: 1.95, trail: 18, parts: 1, density: 1, thick: .65, gap: .95, rot: 1, rate: 0, verb: .4, echo: .15, bass: 4, inVol: .55, muffle: .6, popSnd: 'cristal', follow: '0' },
+    neon:     { exitStyle: 'ondes', exitFx: 1.2, palette: 'Néon', shake: .2, zoom: .4, flash: 1, beat: .85, react: .9, scroll: .6, speed: 1.1, ballSize: 1.5, disk: 1.8, trail: 28, parts: 1.4, density: 1, thick: .5, gap: 1.05, rot: 1.4, rate: 0, verb: .45, echo: .25, bass: 6, inVol: .5, muffle: .65, popSnd: 'cristal', follow: '0' },
+    doux:     { exitStyle: 'ondes', exitFx: 0.6, palette: 'Glacier', shake: 0, zoom: .15, flash: .3, beat: .2, react: .3, scroll: .1, speed: .8, ballSize: 1.6, disk: 2.1, trail: 30, parts: .7, density: 1.1, thick: .6, gap: .9, rot: .6, rate: 0, verb: .65, echo: .35, bass: 2, inVol: .6, muffle: .45, popSnd: 'bulles', follow: '0' },
+    explosif: { exitStyle: 'ondes', exitFx: 1.5, palette: 'Braise', shake: .85, zoom: .6, flash: 1.3, beat: 1, react: .8, scroll: .3, speed: 1.4, ballSize: 1.7, disk: 1.8, trail: 14, parts: 1.8, density: 1, thick: .7, gap: 1.1, rot: 1.2, rate: 0, verb: .3, echo: .1, bass: 9, inVol: .45, muffle: .75, popSnd: 'clic', follow: '0' },
   };
   function markPreset(name) { $('presets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === name))); }
   $('presets').addEventListener('click', e => {
