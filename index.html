@@ -72,6 +72,10 @@
   select { width: 100%; font: 500 15px var(--body); background: #0f0c15; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
   h3 { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 4px 0 -4px; }
   input[type=text] { width: 100%; font: 500 15px var(--body); background: #0f0c15; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  #plan { width: 100%; height: 64px; display: block; border-radius: 8px; background: #0a0810; touch-action: none; cursor: crosshair; }
+  .brush[aria-pressed=true] { background: var(--pink); border-color: var(--pink); color: #2a0020; }
+  label.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+  label.check input { width: 18px; height: 18px; accent-color: var(--gold); margin-top: 1px; flex: none; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; }
   .hint { font-size: 13px; color: var(--muted); margin: 0; }
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -116,7 +120,7 @@
       <div class="grid">
         <div class="field">
           <div class="top"><label for="dur">Durée de la vidéo</label><output id="durOut"></output></div>
-          <input id="dur" type="range" min="15" max="60" step="1" value="40">
+          <input id="dur" type="range" min="10" max="60" step="1" value="40">
         </div>
         <div class="field">
           <div class="top"><label for="sens">Nombre de sorties</label><output id="sensOut"></output></div>
@@ -124,12 +128,25 @@
         </div>
         <div class="field">
           <div class="top"><label for="maxlen">Durée max d'une sortie</label><output id="maxlenOut"></output></div>
-          <input id="maxlen" type="range" min="2" max="9" step="0.5" value="5">
+          <input id="maxlen" type="range" min="2" max="20" step="0.5" value="5">
         </div>
         <div class="field" style="align-content:end">
-          <button id="auto" disabled>Meilleur passage auto</button>
+          <div class="row">
+            <button id="auto" disabled>Meilleur passage</button>
+            <button id="whole" disabled>Tout le morceau</button>
+          </div>
         </div>
       </div>
+      <h3>Quand la balle sort</h3>
+      <canvas id="plan" width="1200" height="130" aria-label="Moments où la balle sort du cercle"></canvas>
+      <div class="row">
+        <button id="brushOut" class="brush" aria-pressed="true">Peindre : sortie</button>
+        <button id="brushIn" class="brush" aria-pressed="false">Peindre : dedans</button>
+        <button id="planAuto">Détection auto</button>
+        <button id="planClear">Tout effacer</button>
+      </div>
+      <label class="check"><input id="finale" type="checkbox" checked> Finir à 0 : la balle sort pendant les dernières secondes et le dernier anneau éclate à la fin</label>
+      <p class="hint">Glisse le doigt sur la barre pour choisir les moments où la balle sort (rose) ou reste dans le cercle. Une sortie dure aussi longtemps que tu la peins : la balle reste dehors tout du long.</p>
     </section>
 
     <section>
@@ -218,7 +235,7 @@
       <div class="grid">
         <div class="field">
           <div class="top"><label for="rate">Vitesse des éclats</label><output id="rateOut"></output></div>
-          <input id="rate" type="range" min="15" max="120" step="5" value="50">
+          <input id="rate" type="range" min="0" max="120" step="5" value="0">
         </div>
       </div>
       <p class="hint">Le zoom rapproche la caméra tant que la balle est dehors. La secousse et le flash suivent les anneaux qui éclatent.</p>
@@ -358,12 +375,12 @@
     get rot() { return +$('rot').value; }, get seed() { return +$('seed').value; }, get res() { return +$('res').value; },
   };
   const fmt = {
-    dur: v => v + ' s', sens: v => v < 0.85 ? 'moins' : v > 1.15 ? 'plus' : 'normal',
+    dur: v => v >= 60 ? Math.floor(v / 60) + ' min ' + String(v % 60).padStart(2, '0') : v + ' s', sens: v => v < 0.85 ? 'moins' : v > 1.15 ? 'plus' : 'normal',
     maxlen: v => v + ' s', volMus: v => Math.round(v * 100) + ' %', volFx: v => Math.round(v * 100) + ' %',
     inVol: v => Math.round(v * 100) + ' %', muffle: v => Math.round(v * 100) + ' %', verb: v => Math.round(v * 100) + ' %',
     echo: v => Math.round(v * 100) + ' %', bass: v => '+' + v + ' dB', shake: v => Math.round(v * 100) + ' %',
     zoom: v => Math.round(v * 100) + ' %', flash: v => Math.round(v * 100) + ' %', react: v => Math.round(v * 100) + ' %',
-    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), disk: v => '× ' + (+v).toFixed(2), rate: v => v + ' / s', trail: v => v == 0 ? 'aucune' : v,
+    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), disk: v => '× ' + (+v).toFixed(2), rate: v => v == 0 ? 'auto' + (autoRate ? ' (' + Math.round(autoRate) + ' / s)' : '') : v + ' / s', trail: v => v == 0 ? 'aucune' : v,
     parts: v => '× ' + (+v).toFixed(1), density: v => '× ' + (+v).toFixed(2), thick: v => '× ' + (+v).toFixed(2),
     speed: v => '× ' + (+v).toFixed(2), gap: v => Math.round(v * 180 / Math.PI) + '°', rot: v => '× ' + (+v).toFixed(1), seed: v => '#' + v,
   };
@@ -457,7 +474,7 @@
   function ringsFor(shape, seed, gapBase) {
     const key = shape + seed + gapBase;
     if (ringCache && ringCache.key === key) return ringCache;
-    const r = mulberry(seed * 9973 + 11), M = 6000, phase = new Float32Array(M), gap = new Float32Array(M), omega = new Float32Array(M);
+    const r = mulberry(seed * 9973 + 11), M = 20000, phase = new Float32Array(M), gap = new Float32Array(M), omega = new Float32Array(M);
     let off = 0;
     for (let i = 0; i < M; i++) {
       if (shape === 'cone') {
@@ -471,11 +488,13 @@
     return ringCache = { key, phase, gap, omega };
   }
 
-  function makeSim(W, N, wins, cb) {
+  function makeSim(W, N, wins, cb, opt = {}) {
     const CONE = S.shape === 'cone';
     const k = CONE ? { r0: .125, sp: .0056, br: .022, v: .62 } : { r0: .16, sp: .0115, br: .011, v: .9 };
-    const R0 = W * k.r0 * (CONE ? S.disk : 1), SP = W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
-    const FOLLOW = S.follow, RATE = CONE ? S.rate : 1e9;
+    const R0 = W * k.r0 * (CONE ? S.disk : 1);
+    // écart auto : au départ les anneaux remplissent juste l'écran, puis il y en a de moins en moins
+    const SP = (CONE && opt.spacingN) ? Math.min(14, Math.max(1.6, (Math.hypot(W, W * 16 / 9) / 2 - R0) / opt.spacingN)) * S.density : W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const FOLLOW = S.follow, RATE = CONE ? (opt.rate || S.rate || 50) : 1e9;
     const SYNC = CONE && wins.length > 0;
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
@@ -522,15 +541,24 @@
       } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
       const lag = st.first - st.offset;
       if (CONE) st.offset += Math.min(lag, (55 + 70 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
-      if (CONE) {
-        const d0 = Math.hypot(st.x, st.y);
-        if (d0 > R0) { const g = W * ((!SYNC || win) ? 3 : 14) * dt / d0; st.vx -= st.x * g; st.vy -= st.y * g; }
-      }
+      const d0 = Math.hypot(st.x, st.y) || 1e-9;
+      if (CONE && SYNC && d0 > R0) {
+        if (win && st.first < N) {
+          // sortie : la balle reste dehors, dans le cône, juste au bord du cercle
+          const a = ringA(st.first) + Math.sin(st.t * 1.3) * 0.1;
+          const hr = R0 + BR * 1.7 + Math.sin(st.t * 2.3) * BR * 0.6;
+          st.vx += (60 * (Math.cos(a) * hr - st.x) - 8 * st.vx) * dt;
+          st.vy += (60 * (Math.sin(a) * hr - st.y) - 8 * st.vy) * dt;
+        } else {
+          // fin de la sortie : retour direct dans le cercle
+          st.vx = -st.x / d0 * SPEED; st.vy = -st.y / d0 * SPEED;
+        }
+      } else if (CONE && d0 > R0) { const g = W * 3 * dt / d0; st.vx -= st.x * g; st.vy -= st.y * g; }
       st.x += st.vx * dt; st.y += st.vy * dt;
       for (let n = 0; n < 8; n++) {
         const i = st.first; if (i >= N) break;
         const r = ringR(i), d = Math.hypot(st.x, st.y) || 1e-9, a = Math.atan2(st.y, st.x);
-        if (inGap(i, a, r)) {
+        if ((win && d > R0 - BR) || inGap(i, a, r)) {
           if (d > r) {
             if (st.t - st.lastPop < 1 / RATE) break; // cadence des éclats limitée
             const rot = ringA(i); st.first++; st.pops++; st.lastPop = st.t; cb && cb.pop(i, r, rot, gap[i]); continue;
@@ -559,8 +587,8 @@
     return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, W };
   }
 
-  function countPops(wins) {
-    const sim = makeSim(1000, 6000, wins, null), steps = Math.round(S.dur / STEP);
+  function countPops(wins, opt) {
+    const sim = makeSim(1000, 20000, wins, null, opt), steps = Math.round(S.dur / STEP);
     for (let i = 0; i < steps; i++) sim.step(STEP);
     return sim.st.pops;
   }
@@ -786,22 +814,49 @@
     },
   };
 
+  // ---------- Plan des sorties (une case = 0,1 s) ----------
+  let plan = new Uint8Array(400), brush = 1, autoRate = 0, simOpt = {};
+  const planLen = () => Math.round(S.dur * 10);
+  function autoPlan() {
+    plan = new Uint8Array(planLen());
+    if (song && S.shape === 'cone') for (const [a, b] of findDrops()) plan.fill(1, Math.round(a * 10), Math.round(b * 10));
+  }
+  function resizePlan() { const p = new Uint8Array(planLen()); p.set(plan.subarray(0, p.length)); plan = p; }
+  function finaleLen() { return Math.max(3, Math.min(8, S.dur * 0.1)); }
+  function planWindows() {
+    const L = planLen(), p = plan.slice(0, L);
+    if ($('finale').checked) p.fill(1, Math.max(0, L - Math.round(finaleLen() * 10)), L);
+    const out = [];
+    for (let i = 0; i < L;) { if (p[i]) { let j = i; while (j < L && p[j]) j++; out.push([i / 10, j / 10]); i = j; } else i++; }
+    return out;
+  }
+
   // ---------- Lecture / boucle ----------
   let playing = false, recording = false, t0 = 0, perf0 = performance.now() / 1000, lastT = 0;
   let N = 1500;
 
   function rebuild() {
-    if (song) { const s0 = Math.round(passageStart * 10), clip = song.db.slice(s0, s0 + Math.round(S.dur * 10)); song.clipLo = pct(clip, 20); song.clipHi = pct(clip, 98); }
-    windows = (song && S.shape === 'cone') ? findDrops() : [];
-    N = windows.length ? countPops(windows) + 300 : 1500;
+    if (song) { const s0 = Math.round(passageStart * 10), clip = song.db.slice(s0, s0 + planLen()); song.clipLo = pct(clip, 20); song.clipHi = pct(clip, 98); }
+    windows = S.shape === 'cone' ? planWindows() : [];
+    autoRate = 0; simOpt = {};
+    if (windows.length) {
+      // vitesse auto : environ 260 anneaux en tout, pour qu'on voie l'écran se vider
+      const outT = windows.reduce((s, w) => s + w[1] - w[0], 0);
+      const rate = S.rate || (autoRate = Math.min(120, Math.max(4, 260 / Math.max(0.5, outT * 0.85))));
+      const n0 = countPops(windows, { spacingN: 260, rate });
+      const n1 = countPops(windows, { spacingN: Math.max(1, n0), rate });
+      simOpt = { spacingN: Math.max(1, n0), rate };
+      N = Math.max(1, n1);
+    } else N = 1500;
+    showOutputs();
     resetSim();
-    drawTimeline();
+    drawTimeline(); drawPlan();
     describe();
   }
   function resetSim() {
     const W = playing ? S.res : 720;
     if (view.width !== W) { view.width = W; view.height = Math.round(W * 16 / 9); }
-    sim = makeSim(1000, N, windows, { pop: onPop, bounce: onBounce });
+    sim = makeSim(1000, N, windows, { pop: onPop, bounce: onBounce }, simOpt);
     ringCols = buildColors(N);
     vis = newVisual(); gateOn = sim.st.gate; lastT = 0;
     perf0 = performance.now() / 1000;
@@ -823,6 +878,7 @@
     updateVisual(Math.max(0, sim.st.t - lastT)); lastT = sim.st.t;
     if (sim.st.gate !== gateOn) { gateOn = sim.st.gate; applyMix(false); }
     draw();
+    if (playing) drawPlan();
     if (playing) {
       const left = Math.max(0, S.dur - sim.st.t);
       status((recording ? '● Enregistrement… ' : 'Lecture… ') + left.toFixed(0) + ' s');
@@ -906,12 +962,55 @@
     if (!song || playing) return;
     const r = tl.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     passageStart = Math.round(Math.min(Math.max(0, song.length - S.dur), Math.max(0, f * song.length - S.dur / 2)) * 10) / 10;
-    windows = S.shape === 'cone' ? findDrops() : []; drawTimeline();
+    autoPlan(); windows = S.shape === 'cone' ? planWindows() : []; drawTimeline(); drawPlan();
   }
   let dragging = false;
   tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); seekFromPointer(e); });
   tl.addEventListener('pointermove', e => { if (dragging) seekFromPointer(e); });
   tl.addEventListener('pointerup', () => { if (dragging) { dragging = false; rebuild(); } });
+
+  // ---------- Barre des sorties ----------
+  const pl = $('plan'), pctx = pl.getContext('2d');
+  function drawPlan() {
+    const W = pl.width, H = pl.height, L = planLen();
+    pctx.clearRect(0, 0, W, H); pctx.fillStyle = '#0a0810'; pctx.fillRect(0, 0, W, H);
+    if (song) {
+      const s0 = Math.round(passageStart * 10), lo = song.clipLo ?? -60, hi = song.clipHi ?? 0;
+      for (let px = 0; px < W; px += 4) {
+        const v = song.db[Math.min(song.db.length - 1, s0 + Math.floor(px / W * L))];
+        const h = Math.max(2, Math.min(1, Math.max(0, (v - lo) / (hi - lo + 1e-6))) * (H - 30));
+        pctx.fillStyle = '#3b2f4d'; pctx.fillRect(px, (H - h) / 2, 3, h);
+      }
+    }
+    const fin = $('finale').checked ? L - Math.round(finaleLen() * 10) : L;
+    for (let i = 0; i < L; i++) {
+      const on = plan[i], f = i >= fin;
+      if (!on && !f) continue;
+      pctx.fillStyle = on ? 'rgba(255,95,200,.75)' : 'rgba(255,95,200,.35)';
+      pctx.fillRect(i / L * W, 0, W / L + 0.5, H);
+    }
+    pctx.fillStyle = '#a297b3'; pctx.font = '500 22px Inter, system-ui, sans-serif'; pctx.textBaseline = 'bottom';
+    const stepS = S.dur > 120 ? 30 : S.dur > 50 ? 10 : 5;
+    for (let t = stepS; t < S.dur; t += stepS) { const x = t / S.dur * W; pctx.fillRect(x, H - 8, 2, 8); pctx.textAlign = 'center'; pctx.fillText(t + ' s', x, H - 10); }
+    if (playing && sim) { pctx.fillStyle = '#ffb54a'; pctx.fillRect(Math.min(W - 3, sim.st.t / S.dur * W), 0, 3, H); }
+  }
+  let painting = false, lastCell = -1;
+  function paintAt(e) {
+    const r = pl.getBoundingClientRect(), L = planLen();
+    const c = Math.min(L - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * L)));
+    const a = lastCell < 0 ? c : Math.min(lastCell, c), b = lastCell < 0 ? c : Math.max(lastCell, c);
+    plan.fill(brush, Math.max(0, a - 2), Math.min(L, b + 3)); lastCell = c;
+    windows = S.shape === 'cone' ? planWindows() : []; drawPlan(); drawTimeline();
+  }
+  pl.addEventListener('pointerdown', e => { if (playing) return; painting = true; lastCell = -1; pl.setPointerCapture(e.pointerId); paintAt(e); });
+  pl.addEventListener('pointermove', e => { if (painting) paintAt(e); });
+  pl.addEventListener('pointerup', () => { if (painting) { painting = false; rebuild(); } });
+  function setBrush(v) { brush = v; $('brushOut').setAttribute('aria-pressed', String(v === 1)); $('brushIn').setAttribute('aria-pressed', String(v === 0)); }
+  $('brushOut').addEventListener('click', () => setBrush(1));
+  $('brushIn').addEventListener('click', () => setBrush(0));
+  $('planAuto').addEventListener('click', () => { if (playing) return; autoPlan(); rebuild(); });
+  $('planClear').addEventListener('click', () => { if (playing) return; plan = new Uint8Array(planLen()); rebuild(); });
+  $('finale').addEventListener('change', () => { if (!playing) rebuild(); });
 
   // ---------- Événements ----------
   $('file').addEventListener('change', async e => {
@@ -924,16 +1023,21 @@
       status('Recherche du meilleur passage et des drops…');
       await new Promise(r => setTimeout(r, 30));
       song = analyze(buf);
-      if (song.length < S.dur) $('dur').value = Math.max(15, Math.floor(song.length));
+      $('dur').max = Math.max(10, Math.floor(song.length));
+      if (song.length < S.dur) $('dur').value = Math.max(10, Math.floor(song.length));
       passageStart = bestPassage();
-      $('auto').disabled = false;
-      showOutputs(); rebuild();
+      $('auto').disabled = false; $('whole').disabled = false;
+      autoPlan(); showOutputs(); rebuild();
     } catch (err) {
       song = null; drawTimeline();
       status("Impossible de lire ce fichier. Essaie un MP3, un M4A ou la vidéo TikTok d'origine.");
     }
   });
-  $('auto').addEventListener('click', () => { if (song && !playing) { passageStart = bestPassage(); rebuild(); } });
+  $('auto').addEventListener('click', () => { if (song && !playing) { passageStart = bestPassage(); autoPlan(); rebuild(); } });
+  $('whole').addEventListener('click', () => {
+    if (!song || playing) return;
+    passageStart = 0; $('dur').value = Math.floor(song.length); showOutputs(); autoPlan(); rebuild();
+  });
   $('play').addEventListener('click', () => playing ? stop() : start(false));
   $('record').addEventListener('click', () => {
     if (!window.MediaRecorder || !view.captureStream) { status("Ce navigateur ne sait pas enregistrer de vidéo. Essaie Chrome ou Safari à jour."); return; }
@@ -956,7 +1060,11 @@
   live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); }));
   structural.forEach(id => {
     $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
-    $(id).addEventListener('change', () => { if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false; rebuild(); });
+    $(id).addEventListener('change', () => {
+      if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false;
+      if (id === 'dur') resizePlan(); else if (id === 'sens' || id === 'maxlen' || id === 'shape') autoPlan();
+      rebuild();
+    });
   });
 
   const sw = $('swatches');
