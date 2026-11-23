@@ -75,48 +75,67 @@ def smooth(x, k):
     return np.convolve(x, np.ones(k) / k, mode='same')
 
 
-def best_passage(mono, sr, length):
-    """Cherche le passage le plus intense / le plus contrasté (pas de 1 s)."""
-    db = smooth(loudness_db(mono, sr), 5)
-    L = int(length * 10)
-    if len(db) <= L: return 0.0
-    rise = np.maximum(0, db - np.concatenate([np.full(30, db[0]), db[:-30]]))
-    best, bt = -1e9, 0
-    for s0 in range(0, len(db) - L, 10):
-        seg = db[s0:s0 + L]
-        score = seg.mean() + 0.8 * (np.percentile(seg, 90) - np.percentile(seg, 15)) \
-            + 0.15 * rise[s0:s0 + L].max()
-        if score > best: best, bt = score, s0
-    # démarrer juste avant une montée, c'est plus accrocheur
-    return bt / 10
-
-
-def find_drops(mono, sr):
-    """Repère les "drops" : la musique monte d'un coup par rapport aux 3 s précédentes."""
+def drop_strength(mono, sr):
+    """Pour chaque 0,1 s : de combien le volume (général + basses) monte
+    par rapport aux 3 secondes précédentes."""
     db = smooth(loudness_db(mono, sr), 3)
-    base = np.array([db[max(0, i - 30):max(1, i - 2)].mean() for i in range(len(db))])
-    rise = db - base
-    p50, p55 = np.percentile(db, 50), np.percentile(db, 55)
-    wins, i = [], 15
-    while i < len(db):
-        if rise[i] > 4 and db[i] > p55 and rise[i] >= rise[max(0, i - 2):i + 3].max():
-            j = i + 20
-            while j < min(len(db), i + 55) and db[j] > p50: j += 1
-            wins.append([i / 10, j / 10]); i = j + 25
-        else:
-            i += 1
-    if len(wins) < 2:  # repli : les passages les plus forts
-        thr = np.percentile(db, 72)
-        loud = smooth((db > thr).astype(float), 10) > 0.5
-        wins, i = [], 0
-        while i < len(loud):
-            if loud[i]:
-                j = i
-                while j < len(loud) and loud[j]: j += 1
-                if j - i >= 15: wins.append([i / 10, min(j, i + 60) / 10])
-                i = j + 20
-            else:
-                i += 1
+    lo = lowpass(mono[:, None], sr, 150)[:, 0]
+    dl = smooth(loudness_db(lo, sr), 3)[:len(db)]
+    def rise(v):
+        c = np.concatenate([[0], np.cumsum(v)])
+        out = np.zeros_like(v)
+        for i in range(len(v)):
+            a, b = max(0, i - 30), max(1, i - 2)
+            out[i] = v[i] - (c[b] - c[a]) / (b - a)
+        return out
+    return db, rise(db) + rise(dl)
+
+
+def drop_peaks(db, strength, thr, spacing=40):
+    """Instants (index 0,1 s) des drops, espacés d'au moins `spacing`."""
+    cand = [i for i in range(3, len(strength) - 3)
+            if strength[i] > thr and strength[i] >= strength[i - 3:i + 4].max()]
+    out = []
+    for i in sorted(cand, key=lambda k: -strength[k]):
+        if all(abs(i - j) >= spacing for j in out): out.append(i)
+    return sorted(out)
+
+
+def song_threshold(strength):
+    core = strength[50:-50] if len(strength) > 200 else strength
+    return max(6.0, np.percentile(core, 99))
+
+
+def best_passage(mono, sr, length):
+    """Passage fort, sans silence, avec plusieurs beaux drops (dont un pas trop tôt)."""
+    db, strength = drop_strength(mono, sr)
+    L = int(length * 10)
+    if len(db) <= L: return 0.0, None
+    thr = song_threshold(strength)
+    floor = np.median(db) - 12
+    peaks = drop_peaks(db, strength, thr)
+    best, bt = -1e9, 0
+    for s0 in range(0, len(db) - L, 5):
+        seg = db[s0:s0 + L]
+        if seg.min() < floor: continue  # pas d'intro / fin silencieuse
+        inside = [p for p in peaks if s0 + 40 <= p <= s0 + L - 50]
+        score = seg.mean() + 4.0 * min(len(inside), 4)
+        if inside and inside[0] - s0 < 60: score -= 3  # laisser un moment calme avant le 1er drop
+        if score > best: best, bt = score, s0
+    return bt / 10, thr
+
+
+def find_drops(mono, sr, thr=None, max_len=5.0):
+    """Repère les drops : montée nette du volume et des basses."""
+    db, strength = drop_strength(mono, sr)
+    if thr is None: thr = song_threshold(strength)
+    p50 = np.percentile(db, 50)
+    wins = []
+    for i in drop_peaks(db, strength, thr):
+        if i < 10 or (wins and i / 10 < wins[-1][1] + 2): continue
+        j = i + 25
+        while j < min(len(db), i + int(max_len * 10)) and db[j] > p50: j += 1
+        wins.append([max(0, i / 10 - 0.1), j / 10])
     return wins
 
 
@@ -180,8 +199,9 @@ def main():
     if args.musique:
         full = decode(args.musique, sr)
         song_len = len(full) / sr
+        thr = None
         if args.debut_musique is None:
-            args.debut_musique = best_passage(full.mean(1), sr, args.duree)
+            args.debut_musique, thr = best_passage(full.mean(1), sr, args.duree)
         start = int(args.debut_musique * sr)
         music = full[start:start + int(args.duree * sr)]
         if len(music) < int(args.duree * sr):
@@ -189,7 +209,7 @@ def main():
         print(f'Morceau : {song_len:.0f} s — passage retenu : {args.debut_musique:.1f} s → '
               f'{args.debut_musique + args.duree:.1f} s')
         if args.style == 'cone' and not args.sans_sync:
-            windows = find_drops(music.mean(1), sr)
+            windows = find_drops(music.mean(1), sr, thr)
             print('Sorties de la balle (s) : ' + ', '.join(f'{a:.1f}–{b:.1f}' for a, b in windows))
     SYNC = bool(windows)
     rnd = random.Random(args.graine)
