@@ -1,356 +1,762 @@
-<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#07060b">
-<title>Anneaux Infinis</title>
+<title>Studio Anneaux</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;800&display=swap">
 <style>
-  :root { --bg:#07060b; --fg:#f4f4f6; --accent:#6ee87a; --panel:rgba(20,20,28,.88); }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  html,body { height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
-  canvas { display:block; width:100vw; height:100vh; height:100dvh; }
-  #menu { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.45); }
-  #menu.hidden { display:none; }
-  .card { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px 20px; width:min(360px,100%); backdrop-filter:blur(8px); }
-  h1 { font-size:24px; font-weight:800; letter-spacing:.5px; margin-bottom:4px; }
-  .sub { opacity:.65; font-size:14px; margin-bottom:18px; }
-  label { display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:15px; margin:12px 0; }
-  select { background:#1b1b26; color:var(--fg); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:8px 10px; font-size:15px; }
-  button { margin-top:16px; width:100%; padding:14px; border:0; border-radius:12px; font-size:17px; font-weight:800;
-    background:var(--accent); color:#06210b; cursor:pointer; }
-  #hint { position:fixed; bottom:max(14px, env(safe-area-inset-bottom)); left:0; right:0; text-align:center; font-size:12px; opacity:.35; pointer-events:none; }
+  /* Layout: aperçu vertical 9:16 à gauche (en haut sur téléphone), table de réglages à droite. Thème sombre assumé : c'est un studio vidéo. */
+  :root {
+    --bg: #0e0b13;
+    --panel: #17121f;
+    --line: #2b2338;
+    --fg: #f3eef8;
+    --muted: #a297b3;
+    --gold: #ffb54a;
+    --pink: #ff5fc8;
+    --gold-ink: #2a1800;
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: var(--body); font-size: 15px; line-height: 1.45;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px 40px;
+  }
+  .app { max-width: 1060px; margin: 0 auto; display: grid; gap: 24px; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 820px) { .app { grid-template-columns: minmax(0, 1fr); } }
+
+  header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(26px, 5vw, 36px); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  h1 span { color: var(--gold); }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .stage { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 12px; justify-items: center; }
+  @media (max-width: 820px) { .stage { position: static; } }
+  #view { width: min(100%, 380px, calc(64vh * 9 / 16)); height: auto; aspect-ratio: 9 / 16; border-radius: 14px; background: #000; display: block; }
+  .transport { display: flex; gap: 10px; width: 100%; max-width: 380px; }
+  .transport button { flex: 1; }
+  .status { font-size: 13px; color: var(--muted); min-height: 1.4em; text-align: center; font-variant-numeric: tabular-nums; }
+
+  button {
+    font: 600 15px/1 var(--body); border-radius: 10px; padding: 13px 14px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+  }
+  button.primary { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  button.rec { background: var(--pink); border-color: var(--pink); color: #2a0020; }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible, label.file:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .controls { display: grid; gap: 14px; min-width: 0; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: 18px; margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  h2 small { font-family: var(--body); font-weight: 500; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+  label.file { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 10px; cursor: pointer; }
+  label.file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  label.file b { color: var(--gold); white-space: nowrap; }
+  label.file span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+  #timeline { width: 100%; height: 74px; display: block; border-radius: 8px; background: #0a0810; touch-action: none; cursor: pointer; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 18px; }
+  .field { display: grid; gap: 6px; min-width: 0; }
+  .field .top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+  .field output { color: var(--gold); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--gold); }
+  select { width: 100%; font: 500 15px var(--body); background: #0f0c15; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatches button { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+  .swatches button[aria-pressed=true] { border-color: var(--fg); }
+
+  #result[hidden] { display: none; }
+  #result video { width: 100%; max-width: 260px; border-radius: 10px; background: #000; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
-</head>
-<body>
-<canvas id="c"></canvas>
-<div id="menu">
-  <div class="card">
-    <h1>Anneaux Infinis</h1>
-    <div class="sub">Une balle, des anneaux qui tournent. Chaque sortie fait sauter un anneau.</div>
-    <label>Anneaux
-      <select id="optRings">
-        <option value="100">100</option>
-        <option value="500">500</option>
-        <option value="1000">1000</option>
-        <option value="2000" selected>2000</option>
-        <option value="5000">5000</option>
-      </select>
-    </label>
-    <label>Vitesse de la balle
-      <select id="optSpeed">
-        <option value="0.7">Lente</option>
-        <option value="1" selected>Normale</option>
-        <option value="1.5">Rapide</option>
-        <option value="2.2">Folle</option>
-      </select>
-    </label>
-    <label>Ouverture
-      <select id="optGap">
-        <option value="0.55">Petite</option>
-        <option value="0.95" selected>Moyenne</option>
-        <option value="1.5">Grande</option>
-      </select>
-    </label>
-    <label>Couleurs
-      <select id="optTheme">
-        <option value="green" selected>Vert</option>
-        <option value="rainbow">Arc-en-ciel</option>
-        <option value="neon">Néon</option>
-      </select>
-    </label>
-    <label>Son
-      <select id="optSound">
-        <option value="1" selected>Activé</option>
-        <option value="0">Coupé</option>
-      </select>
-    </label>
-    <button id="start">Lancer</button>
+
+<div class="app">
+  <header>
+    <h1>Studio <span>Anneaux</span></h1>
+    <p>Mets ta musique, le studio trouve le meilleur passage et les drops. La balle sort du cercle sur chaque drop, puis tu enregistres la vidéo pour TikTok.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="view" width="720" height="1280" aria-label="Aperçu de la vidéo"></canvas>
+    <div class="transport">
+      <button id="play" class="primary">▶ Aperçu</button>
+      <button id="record" class="rec">● Enregistrer la vidéo</button>
+    </div>
+    <div class="status" id="status" role="status">Démo sans musique. Ajoute un morceau à droite.</div>
+  </div>
+
+  <div class="controls">
+    <section>
+      <h2>Musique <small>étape 1</small></h2>
+      <label class="file">
+        <input id="file" type="file" accept="audio/*,video/*">
+        <b>Choisir un fichier</b>
+        <span id="fileName">MP3, M4A, WAV… ou une vidéo TikTok (on garde le son)</span>
+      </label>
+      <canvas id="timeline" width="1200" height="148" aria-label="Morceau : passage choisi et drops"></canvas>
+      <div class="legend">
+        <span><i style="background:#3b2f4d"></i>morceau</span>
+        <span><i style="background:rgba(255,181,74,.35)"></i>passage gardé</span>
+        <span><i style="background:var(--pink)"></i>sortie de la balle (drop)</span>
+        <span>Touche la barre pour déplacer le passage.</span>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <div class="top"><label for="dur">Durée de la vidéo</label><output id="durOut"></output></div>
+          <input id="dur" type="range" min="15" max="60" step="1" value="40">
+        </div>
+        <div class="field">
+          <div class="top"><label for="sens">Nombre de sorties</label><output id="sensOut"></output></div>
+          <input id="sens" type="range" min="0.6" max="1.5" step="0.05" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="maxlen">Durée max d'une sortie</label><output id="maxlenOut"></output></div>
+          <input id="maxlen" type="range" min="2" max="9" step="0.5" value="5">
+        </div>
+        <div class="field" style="align-content:end">
+          <button id="auto" disabled>Meilleur passage auto</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Son <small>étape 2</small></h2>
+      <div class="grid">
+        <div class="field">
+          <div class="top"><label for="volMus">Volume musique</label><output id="volMusOut"></output></div>
+          <input id="volMus" type="range" min="0" max="1.5" step="0.05" value="0.9">
+        </div>
+        <div class="field">
+          <div class="top"><label for="volFx">Volume des effets</label><output id="volFxOut"></output></div>
+          <input id="volFx" type="range" min="0" max="1.5" step="0.05" value="0.5">
+        </div>
+        <div class="field">
+          <div class="top"><label for="fxAmt">Effet dedans / dehors</label><output id="fxAmtOut"></output></div>
+          <input id="fxAmt" type="range" min="0" max="2" step="0.1" value="1">
+        </div>
+      </div>
+      <p class="hint">Dans le cercle, la musique est plus douce et étouffée. Quand la balle sort, elle est pleine, avec de la réverb. « Effet » règle l'écart entre les deux.</p>
+    </section>
+
+    <section>
+      <h2>Look <small>étape 3</small></h2>
+      <div class="field">
+        <span class="top">Couleurs</span>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label class="top" for="shape">Forme</label>
+          <select id="shape">
+            <option value="cone" selected>Cône (sorties sur les drops)</option>
+            <option value="spirale">Spirale</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="top"><label for="speed">Vitesse de la balle</label><output id="speedOut"></output></div>
+          <input id="speed" type="range" min="0.5" max="2" step="0.05" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="gap">Largeur de l'ouverture</label><output id="gapOut"></output></div>
+          <input id="gap" type="range" min="0.5" max="1.8" step="0.05" value="0.95">
+        </div>
+        <div class="field">
+          <div class="top"><label for="rot">Rotation</label><output id="rotOut"></output></div>
+          <input id="rot" type="range" min="0" max="3" step="0.1" value="1">
+        </div>
+        <div class="field">
+          <div class="top"><label for="seed">Trajet de la balle</label><output id="seedOut"></output></div>
+          <input id="seed" type="range" min="1" max="50" step="1" value="7">
+        </div>
+        <div class="field">
+          <label class="top" for="res">Qualité de la vidéo</label>
+          <select id="res">
+            <option value="720">720 × 1280 (plus fluide)</option>
+            <option value="1080">1080 × 1920 (plus net)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section id="result" hidden>
+      <h2>Ta vidéo <small>terminé</small></h2>
+      <video id="resultVideo" controls playsinline></video>
+      <div class="row">
+        <button id="save" class="primary">Enregistrer sur l'appareil</button>
+      </div>
+      <p class="hint" id="saveHint"></p>
+    </section>
   </div>
 </div>
-<div id="hint">Touchez l'écran pour ouvrir le menu</div>
 
 <script>
 (() => {
-  const cv = document.getElementById('c');
-  const ctx = cv.getContext('2d');
-  const menu = document.getElementById('menu');
-  const hint = document.getElementById('hint');
+  'use strict';
   const TAU = Math.PI * 2;
+  const $ = id => document.getElementById(id);
+  const view = $('view'), ctx = view.getContext('2d');
+  const tl = $('timeline'), tctx = tl.getContext('2d');
 
-  let W = 0, H = 0, S = 0, DPR = 1;
-  function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
-    W = window.innerWidth; H = window.innerHeight;
-    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-    S = Math.min(W, H);
+  // ---------- Palettes ----------
+  const PALETTES = {
+    'Coucher de soleil': { rings: [[1,.68,.2],[1,.42,.85],[.72,.35,1],[1,.42,.85]], ball: [1,.8,.25], halo: [1,.7,.15] },
+    'Menthe':            { rings: [[.40,.85,.45],[.55,.97,.6],[.32,.75,.4]], ball: [.94,.92,1], halo: [.7,.59,1] },
+    'Glacier':           { rings: [[.45,.85,1],[.25,.5,1],[.85,.95,1],[.25,.5,1]], ball: [1,1,1], halo: [.6,.85,1] },
+    'Braise':            { rings: [[1,.25,.15],[1,.55,.1],[1,.85,.3],[1,.55,.1]], ball: [1,.95,.8], halo: [1,.6,.2] },
+  };
+  let paletteName = 'Coucher de soleil';
+
+  // ---------- Réglages ----------
+  const S = {
+    get dur() { return +$('dur').value; }, get sens() { return +$('sens').value; }, get maxlen() { return +$('maxlen').value; },
+    get volMus() { return +$('volMus').value; }, get volFx() { return +$('volFx').value; }, get fxAmt() { return +$('fxAmt').value; },
+    get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
+    get rot() { return +$('rot').value; }, get seed() { return +$('seed').value; }, get res() { return +$('res').value; },
+  };
+  const fmt = {
+    dur: v => v + ' s', sens: v => v < 0.85 ? 'moins' : v > 1.15 ? 'plus' : 'normal',
+    maxlen: v => v + ' s', volMus: v => Math.round(v * 100) + ' %', volFx: v => Math.round(v * 100) + ' %',
+    fxAmt: v => v == 0 ? 'aucun' : v < 0.8 ? 'léger' : v > 1.3 ? 'fort' : 'moyen',
+    speed: v => '× ' + (+v).toFixed(2), gap: v => Math.round(v * 180 / Math.PI) + '°', rot: v => '× ' + (+v).toFixed(1), seed: v => '#' + v,
+  };
+  function showOutputs() { for (const k in fmt) $(k + 'Out').textContent = fmt[k]($(k).value); }
+
+  // ---------- Aléatoire reproductible ----------
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(r) { let u = 0, v = 0; while (u === 0) u = r(); v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+  const wrap = a => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
+
+  // ---------- Analyse de la musique ----------
+  let song = null; // {buffer, db, strength, thr, length}
+  let passageStart = 0, windows = [];
+
+  function onePoleLP(x, sr, fc) {
+    const a = Math.exp(-TAU * fc / sr), y = new Float32Array(x.length);
+    let s1 = 0, s2 = 0;
+    for (let i = 0; i < x.length; i++) { s1 = (1 - a) * x[i] + a * s1; s2 = (1 - a) * s1 + a * s2; y[i] = s2; }
+    return y;
   }
-  window.addEventListener('resize', resize);
-  resize();
+  function loudness(x, sr) {
+    const h = Math.round(sr * 0.1), n = Math.floor(x.length / h), out = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let s = 0; for (let k = i * h; k < (i + 1) * h; k++) s += x[k] * x[k]; out[i] = 20 * Math.log10(Math.sqrt(s / h + 1e-10)); }
+    return out;
+  }
+  function smooth3(v) { const o = new Float32Array(v.length); for (let i = 0; i < v.length; i++) { let s = 0, c = 0; for (let k = i - 1; k <= i + 1; k++) if (k >= 0 && k < v.length) { s += v[k]; c++; } o[i] = s / c; } return o; }
+  function rise(v) {
+    const c = new Float64Array(v.length + 1); for (let i = 0; i < v.length; i++) c[i + 1] = c[i] + v[i];
+    const o = new Float32Array(v.length);
+    for (let i = 0; i < v.length; i++) { const a = Math.max(0, i - 30), b = Math.max(1, i - 2); o[i] = v[i] - (c[b] - c[a]) / (b - a); }
+    return o;
+  }
+  const pct = (arr, p) => { const s = Array.from(arr).sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.floor(p / 100 * (s.length - 1))))]; };
 
-  // ---------- Audio ----------
-  let actx = null, soundOn = true;
-  const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // pentatonique
-  let noteIdx = 0;
-  function audioInit() {
-    if (!actx) {
-      try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
+  function analyze(buffer) {
+    const sr = buffer.sampleRate, n = buffer.length, mono = new Float32Array(n);
+    for (let c = 0; c < buffer.numberOfChannels; c++) { const d = buffer.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / buffer.numberOfChannels; }
+    const db = smooth3(loudness(mono, sr));
+    const dl = smooth3(loudness(onePoleLP(mono, sr, 150), sr));
+    const r1 = rise(db), r2 = rise(dl), strength = new Float32Array(db.length);
+    for (let i = 0; i < db.length; i++) strength[i] = r1[i] + r2[i];
+    const core = db.length > 200 ? strength.slice(50, -50) : strength;
+    const thr = Math.max(6, pct(core, 99));
+    return { buffer, db, strength, thr, length: buffer.duration };
+  }
+  function dropPeaks(strength, thr, from, to, spacing = 40) {
+    const cand = [];
+    for (let i = Math.max(3, from); i < Math.min(strength.length - 3, to); i++) {
+      if (strength[i] <= thr) continue;
+      let ok = true; for (let k = i - 3; k <= i + 3; k++) if (strength[k] > strength[i]) { ok = false; break; }
+      if (ok) cand.push(i);
     }
-    if (actx && actx.state === 'suspended') actx.resume();
+    cand.sort((a, b) => strength[b] - strength[a]);
+    const out = []; for (const i of cand) if (out.every(j => Math.abs(i - j) >= spacing)) out.push(i);
+    return out.sort((a, b) => a - b);
   }
-  function tone(freq, dur, vol, type) {
-    if (!actx || !soundOn) return;
-    const t = actx.currentTime;
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = type || 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(actx.destination);
-    o.start(t); o.stop(t + dur + 0.02);
-  }
-  let lastBounceSound = 0;
-  function bounceSound() {
-    const now = performance.now();
-    if (now - lastBounceSound < 40) return;
-    lastBounceSound = now;
-    tone(180 + Math.random() * 40, 0.08, 0.05, 'triangle');
-  }
-  function popSound() {
-    const semi = scale[noteIdx % scale.length];
-    noteIdx = (noteIdx + 1 + (Math.random() < 0.3 ? 1 : 0)) % scale.length;
-    const f = 392 * Math.pow(2, semi / 12);
-    tone(f, 0.25, 0.09, 'sine');
-    tone(f * 2, 0.12, 0.025, 'triangle');
-  }
-
-  // ---------- État ----------
-  let cfg = { rings: 2000, speed: 1, gap: 0.95, theme: 'green' };
-  let rings = [];      // {phase, omega}
-  let first = 0;       // index du premier anneau vivant
-  let offset = 0;      // version animée de `first`
-  let ball, trail, particles, t, running = false, done = false, doneTime = 0;
-  let pulse = 0;       // flash du compteur
-
-  // unités relatives à la taille de l'écran
-  const R0 = () => S * 0.16;
-  const SP = () => Math.max(3, S * 0.0115);
-  const BR = () => Math.max(3, S * 0.011);
-
-  function newGame() {
-    rings = [];
-    const n = cfg.rings;
-    for (let i = 0; i < n; i++) {
-      rings.push({
-        phase: i * 0.11,                       // décalage → spirale dès le départ
-        omega: 0.9 + i * 0.0035 + Math.sin(i * 0.05) * 0.15
-      });
+  function bestPassage() {
+    const { db, strength, thr } = song, L = Math.round(S.dur * 10);
+    if (db.length <= L) return 0;
+    const sorted = Array.from(db).sort((a, b) => a - b), floor = sorted[sorted.length >> 1] - 12;
+    const c = new Float64Array(db.length + 1); for (let i = 0; i < db.length; i++) c[i + 1] = c[i] + db[i];
+    const peaks = dropPeaks(strength, thr, 0, db.length);
+    let best = -1e9, bt = 0;
+    for (let s0 = 0; s0 + L < db.length; s0 += 5) {
+      let mn = 1e9; for (let i = s0; i < s0 + L; i++) if (db[i] < mn) mn = db[i];
+      if (mn < floor) continue;
+      const inside = peaks.filter(p => p >= s0 + 40 && p <= s0 + L - 50);
+      let score = (c[s0 + L] - c[s0]) / L + 4 * Math.min(inside.length, 4);
+      if (inside.length && inside[0] - s0 < 60) score -= 3;
+      if (score > best) { best = score; bt = s0; }
     }
-    first = 0; offset = 0; t = 0; done = false; noteIdx = 0;
-    const a = Math.random() * TAU;
-    const sp = S * 0.9 * cfg.speed;
-    ball = { x: 0, y: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp };
-    trail = []; particles = [];
+    return bt / 10;
   }
-
-  function ringRadius(i) { return R0() + (i - offset) * SP(); }
-  function ringAngle(i) { return rings[i].phase + rings[i].omega * t; }
-
-  function angDiff(a, b) {
-    let d = (a - b) % TAU;
-    if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU;
-    return d;
-  }
-
-  function ringColor(i, alpha) {
-    switch (cfg.theme) {
-      case 'rainbow': return `hsla(${(i * 2.2) % 360},85%,62%,${alpha})`;
-      case 'neon': return `hsla(${285 + Math.sin(i * 0.06) * 40},95%,${62 + Math.sin(i*0.21)*8}%,${alpha})`;
-      default: return `hsla(${125 + Math.sin(i * 0.08) * 8},65%,${58 + Math.sin(i * 0.37) * 6}%,${alpha})`;
+  function findDrops() {
+    if (!song) return [];
+    const { db, strength, thr } = song, s0 = Math.round(passageStart * 10), L = Math.round(S.dur * 10);
+    const clip = db.slice(s0, s0 + L), p50 = pct(clip, 50), maxLen = S.maxlen;
+    const wins = [];
+    for (const i of dropPeaks(strength, thr * S.sens, s0 + 10, s0 + L)) {
+      const t = (i - s0) / 10;
+      if (wins.length && t < wins[wins.length - 1][1] + 2) continue;
+      let j = i + 25; while (j < Math.min(s0 + L, i + Math.round(maxLen * 10)) && db[j] > p50) j++;
+      wins.push([Math.max(0, t - 0.1), Math.min(S.dur, (j - s0) / 10)]);
     }
+    return wins;
   }
 
-  function popRing(i) {
-    const r = ringRadius(i);
-    const rot = ringAngle(i);
-    const gap = cfg.gap;
-    const count = Math.min(60, 18 + Math.floor(r / 4));
-    for (let k = 0; k < count; k++) {
-      const a = rot + gap / 2 + Math.random() * (TAU - gap);
-      const sp = S * (0.15 + Math.random() * 0.5);
-      particles.push({
-        x: Math.cos(a) * r, y: Math.sin(a) * r,
-        vx: Math.cos(a) * sp + (Math.random() - .5) * S * .2,
-        vy: Math.sin(a) * sp + (Math.random() - .5) * S * .2,
-        life: 1, decay: 0.9 + Math.random() * 1.2, col: i
-      });
+  // ---------- Simulation ----------
+  const STEP = 1 / 480;
+  let ringCache = null;
+  function ringsFor(shape, seed, gapBase) {
+    const key = shape + seed + gapBase;
+    if (ringCache && ringCache.key === key) return ringCache;
+    const r = mulberry(seed * 9973 + 11), M = 6000, phase = new Float32Array(M), gap = new Float32Array(M), omega = new Float32Array(M);
+    let off = 0;
+    for (let i = 0; i < M; i++) {
+      if (shape === 'cone') {
+        off = off * 0.9 + gauss(r) * 0.03;
+        phase[i] = off + Math.sin(i * 0.006) * 0.3;
+        gap[i] = Math.max(0.35, gapBase * (1 + gauss(r) * 0.07));
+      } else {
+        phase[i] = i * 0.11; omega[i] = 0.9 + i * 0.0035 + Math.sin(i * 0.05) * 0.15; gap[i] = gapBase;
+      }
     }
-    if (particles.length > 1500) particles.splice(0, particles.length - 1500);
-    first++;
-    pulse = 1;
-    popSound();
-    if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
-    if (first >= rings.length) { done = true; doneTime = t; }
+    return ringCache = { key, phase, gap, omega };
   }
 
-  function step(dt) {
-    t += dt;
-    // les anneaux se resserrent vers le centre
-    offset += (first - offset) * (1 - Math.exp(-dt * 14));
-    if (Math.abs(first - offset) < 0.001) offset = first;
-
-    const br = BR();
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
-
-    if (first < rings.length) {
-      const i = first;
-      const r = ringRadius(i);
-      const d = Math.hypot(ball.x, ball.y);
-      const a = Math.atan2(ball.y, ball.x);
-      const margin = Math.asin(Math.min(1, br / Math.max(r, br)));
-      const inGap = Math.abs(angDiff(a, ringAngle(i))) < cfg.gap / 2 - margin;
-
-      if (inGap) {
-        if (d > r) popRing(i);
-      } else if (d > r - br) {
-        // rebond sur l'anneau
-        const nx = ball.x / d, ny = ball.y / d;
-        ball.x = nx * (r - br); ball.y = ny * (r - br);
-        const vn = ball.vx * nx + ball.vy * ny;
-        if (vn > 0) {
-          ball.vx -= 2 * vn * nx; ball.vy -= 2 * vn * ny;
-          // petite perturbation pour éviter les boucles parfaites
-          const sp = Math.hypot(ball.vx, ball.vy);
-          const ang = Math.atan2(ball.vy, ball.vx) + (Math.random() - .5) * 0.18;
-          const target = S * 0.9 * cfg.speed;
-          const ns = sp + (target - sp) * 0.3;
-          ball.vx = Math.cos(ang) * ns; ball.vy = Math.sin(ang) * ns;
-          bounceSound();
+  function makeSim(W, N, wins, cb) {
+    const CONE = S.shape === 'cone';
+    const k = CONE ? { r0: .125, sp: .0056, br: .022, v: .62 } : { r0: .16, sp: .0115, br: .011, v: .9 };
+    const R0 = W * k.r0, SP = W * k.sp, BR = W * k.br, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const SYNC = CONE && wins.length > 0;
+    const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
+    const rnd = mulberry(S.seed * 7919 + 1);
+    const a0 = rnd() * TAU;
+    const st = { t: 0, first: 0, offset: 0, rot: 0, gate: !SYNC, x: 0, y: 0, vx: Math.cos(a0) * SPEED, vy: Math.sin(a0) * SPEED, pops: 0 };
+    const inWin = t => wins.some(w => t >= w[0] && t < w[1]);
+    const ringR = i => R0 + (i - st.offset) * SP;
+    const ringA = i => phase[i] + (CONE ? st.rot : omega[i] * st.t * rotMul);
+    function inGap(i, a, r) {
+      if (!st.gate && i === st.first) return false;
+      const margin = Math.asin(Math.min(1, BR / Math.max(r, BR))) * (CONE ? 0.6 : 1);
+      return Math.abs(wrap(a - ringA(i))) < gap[i] / 2 - margin;
+    }
+    function hitAngle() {
+      const d = Math.hypot(st.x, st.y), Rw = Math.max(BR, ringR(st.first) - BR);
+      if (d >= Rw * 0.98) return Math.atan2(st.y, st.x);
+      const a = st.vx * st.vx + st.vy * st.vy, b = 2 * (st.x * st.vx + st.y * st.vy), c = d * d - Rw * Rw;
+      const s = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a);
+      return Math.atan2(st.y + st.vy * s, st.x + st.vx * s);
+    }
+    function step(dt) {
+      st.t += dt;
+      const win = SYNC && inWin(st.t);
+      if (SYNC) {
+        if (win) st.gate = true;
+        else if (st.gate && st.first < N && Math.hypot(st.x, st.y) < ringR(st.first) - BR * 1.5) st.gate = false;
+        if (win && st.first < N) {
+          const diff = wrap(hitAngle() - ringA(st.first));
+          st.rot += Math.max(-9 * dt, Math.min(9 * dt, diff * 12 * dt));
+        } else st.rot += 0.42 * rotMul * dt;
+      } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
+      const lag = st.first - st.offset;
+      if (CONE) st.offset += Math.min(lag, (45 + 20 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
+      if (CONE) {
+        const d0 = Math.hypot(st.x, st.y);
+        if (d0 > R0) { const g = W * ((!SYNC || win) ? 3 : 14) * dt / d0; st.vx -= st.x * g; st.vy -= st.y * g; }
+      }
+      st.x += st.vx * dt; st.y += st.vy * dt;
+      for (let n = 0; n < 8; n++) {
+        const i = st.first; if (i >= N) break;
+        const r = ringR(i), d = Math.hypot(st.x, st.y) || 1e-9, a = Math.atan2(st.y, st.x);
+        if (inGap(i, a, r)) {
+          if (d > r) { const rot = ringA(i); st.first++; st.pops++; cb && cb.pop(i, r, rot, gap[i]); continue; }
+        } else if (d > r - BR) {
+          const nx = st.x / d, ny = st.y / d;
+          st.x = nx * (r - BR); st.y = ny * (r - BR);
+          const vn = st.vx * nx + st.vy * ny;
+          if (vn > 0) {
+            st.vx -= 2 * vn * nx; st.vy -= 2 * vn * ny;
+            const ang = Math.atan2(st.vy, st.vx) + (rnd() - .5) * 0.2;
+            st.vx = Math.cos(ang) * SPEED; st.vy = Math.sin(ang) * SPEED;
+            cb && cb.bounce();
+          }
+        }
+        break;
+      }
+      if (st.first >= N) {
+        const d = Math.hypot(st.x, st.y) || 1e-9;
+        if (d > R0 - BR) {
+          const nx = st.x / d, ny = st.y / d; st.x = nx * (R0 - BR); st.y = ny * (R0 - BR);
+          const vn = st.vx * nx + st.vy * ny; if (vn > 0) { st.vx -= 2 * vn * nx; st.vy -= 2 * vn * ny; }
         }
       }
-    } else {
-      // plus d'anneaux : la balle rebondit sur les bords de l'écran
-      const hw = W / 2 - br, hh = H / 2 - br;
-      if (Math.abs(ball.x) > hw) { ball.x = Math.sign(ball.x) * hw; ball.vx *= -1; }
-      if (Math.abs(ball.y) > hh) { ball.y = Math.sign(ball.y) * hh; ball.vy *= -1; }
     }
+    return { st, step, ringR, ringA, gap, N, R0, SP, BR, CONE, SYNC, W };
+  }
 
-    for (const p of particles) {
-      p.x += p.vx * dt; p.y += p.vy * dt;
-      p.vx *= 0.985; p.vy *= 0.985;
-      p.life -= p.decay * dt;
+  function countPops(wins) {
+    const sim = makeSim(1000, 6000, wins, null), steps = Math.round(S.dur / STEP);
+    for (let i = 0; i < steps; i++) sim.step(STEP);
+    return sim.st.pops;
+  }
+
+  // ---------- Rendu ----------
+  let sim, vis, ringCols;
+  function lerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function buildColors(N) {
+    const pal = PALETTES[paletteName].rings, period = S.shape === 'cone' ? 140 : 80, out = new Array(N);
+    for (let i = 0; i < N; i++) { const x = (i / period) % pal.length, k = Math.floor(x); out[i] = lerp(pal[k], pal[(k + 1) % pal.length], x - k); }
+    return out;
+  }
+  const rgb = (c, a = 1) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
+
+  function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0 }; }
+  function onPop(i, r, rot, g) {
+    const W = sim.W, n = sim.CONE ? 10 : 30;
+    for (let k = 0; k < n; k++) {
+      const a = rot + g / 2 + Math.random() * (TAU - g), sp = W * (0.1 + Math.random() * 0.35);
+      vis.particles.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, vx: Math.cos(a) * sp + (Math.random() - .5) * W * .15, vy: Math.sin(a) * sp + (Math.random() - .5) * W * .15, life: 1, decay: 1 + Math.random() * 1.4, i });
     }
-    particles = particles.filter(p => p.life > 0);
-    pulse = Math.max(0, pulse - dt * 5);
+    if (vis.particles.length > 1200) vis.particles.splice(0, vis.particles.length - 1200);
+    if (sim.CONE) for (let k = 0; k < 4; k++) vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.75 + Math.random() * 0.22), life: 2.5 + Math.random() * 3, i, ph: Math.random() * TAU });
+    if (vis.dust.length > 900) vis.dust.splice(0, vis.dust.length - 900);
+    vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06);
+    sfx.pop();
+  }
+  function onBounce() { sfx.bounce(); }
+
+  function updateVisual(dt) {
+    const k = Math.pow(0.985, dt * 60);
+    for (const p of vis.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= k; p.vy *= k; p.life -= p.decay * dt; }
+    vis.particles = vis.particles.filter(p => p.life > 0);
+    for (const d of vis.dust) { d.a += dt * 0.25; d.life -= dt; }
+    vis.dust = vis.dust.filter(d => d.life > 0);
+    vis.pulse = Math.max(0, vis.pulse - dt * 5); vis.flash = Math.max(0, vis.flash - dt * 1.6);
+    vis.trail.push([sim.st.x, sim.st.y]); if (vis.trail.length > 18) vis.trail.shift();
   }
 
   function draw() {
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#07060b';
-    ctx.fillRect(0, 0, W, H);
-    ctx.translate(W / 2, H / 2);
-
-    // anneaux
-    const maxR = Math.hypot(W, H) / 2 + 4;
-    const lw = Math.max(1, S * 0.0042);
-    ctx.lineWidth = lw;
-    ctx.lineCap = 'round';
-    const gap = cfg.gap;
-    for (let i = first; i < rings.length; i++) {
-      const r = ringRadius(i);
-      if (r > maxR) break;
-      if (r <= 1) continue;
-      const rot = ringAngle(i);
-      ctx.strokeStyle = ringColor(i, 1);
-      ctx.beginPath();
-      ctx.arc(0, 0, r, rot + gap / 2, rot - gap / 2 + TAU);
-      ctx.stroke();
+    // la simulation vit dans un repère de 1000 px de large, mis à l'échelle de la vidéo
+    const sc = view.width / 1000, W = 1000, H = view.height / sc, st = sim.st, pal = PALETTES[paletteName];
+    const LW = Math.max(1.5 / sc, W * (sim.CONE ? 0.0036 : 0.0042));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#030205'; ctx.fillRect(0, 0, view.width, view.height);
+    ctx.setTransform(sc, 0, 0, sc, view.width / 2, view.height / 2);
+    const maxR = Math.hypot(W, H) / 2 + 4, fl = vis.flash;
+    ctx.lineWidth = LW; ctx.lineCap = 'butt';
+    for (let i = st.first; i < sim.N; i++) {
+      const r = sim.ringR(i); if (r > maxR) break; if (r <= 1) continue;
+      const rot = sim.ringA(i), b = Math.min(0.85, fl * Math.max(0, 1 - (r - sim.R0) / (W * 0.6)));
+      ctx.strokeStyle = rgb(b > 0.01 ? lerp(ringCols[i], [1, 1, .9], b) : ringCols[i]);
+      ctx.beginPath(); ctx.arc(0, 0, r, rot + sim.gap[i] / 2, rot - sim.gap[i] / 2 + TAU); ctx.stroke();
     }
-
-    // particules
-    for (const p of particles) {
-      ctx.fillStyle = ringColor(p.col, Math.max(0, p.life));
-      ctx.fillRect(p.x - lw, p.y - lw, lw * 2, lw * 2);
+    for (const p of vis.particles) { ctx.fillStyle = rgb(ringCols[p.i] || pal.rings[0], Math.max(0, Math.min(1, p.life))); ctx.fillRect(p.x - LW, p.y - LW, LW * 2, LW * 2); }
+    if (sim.CONE) {
+      ctx.fillStyle = '#030205'; ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
+      for (const d of vis.dust) {
+        const al = Math.min(1, d.life / 1.5) * (0.5 + 0.5 * Math.sin(d.ph + st.t * 6));
+        ctx.fillStyle = rgb(ringCols[d.i] || pal.rings[0], al * 0.9);
+        ctx.beginPath(); ctx.arc(Math.cos(d.a) * d.r, Math.sin(d.a) * d.r, W * 0.0015, 0, TAU); ctx.fill();
+      }
+      if (st.first < sim.N) {
+        const rr = Math.max(sim.R0, sim.ringR(st.first)), rot = sim.ringA(st.first), g = sim.gap[st.first];
+        for (const [w, al] of [[LW * 7, .08], [LW * 4, .18], [LW * 2, .5]]) {
+          ctx.strokeStyle = `rgba(255,242,255,${al * (0.6 + fl)})`; ctx.lineWidth = w; ctx.beginPath();
+          if (st.gate) ctx.arc(0, 0, rr, rot + g / 2, rot - g / 2 + TAU); else ctx.arc(0, 0, rr, 0, TAU);
+          ctx.stroke();
+        }
+      }
+    } else {
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, sim.R0);
+      g.addColorStop(0, rgb(pal.halo, .1)); g.addColorStop(1, rgb(pal.halo, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, sim.R0, 0, TAU); ctx.fill();
     }
-
-    // halo du centre
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R0());
-    g.addColorStop(0, 'rgba(160,140,255,0.10)');
-    g.addColorStop(1, 'rgba(160,140,255,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, R0(), 0, TAU); ctx.fill();
-
     // compteur
-    const remaining = rings.length - first;
-    const fs = S * 0.105 * (1 + pulse * 0.12);
-    ctx.font = `900 ${fs}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 12;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(done ? 'BRAVO !' : String(remaining), 0, 0);
-    ctx.shadowBlur = 0;
-
-    // traînée
-    const br = BR();
-    for (let k = 1; k < trail.length; k++) {
-      const a = k / trail.length;
-      ctx.strokeStyle = `rgba(190,160,255,${a * 0.55})`;
-      ctx.lineWidth = br * 1.6 * a;
-      ctx.beginPath();
-      ctx.moveTo(trail[k - 1].x, trail[k - 1].y);
-      ctx.lineTo(trail[k].x, trail[k].y);
-      ctx.stroke();
+    const fs = W * (sim.CONE ? 0.085 : 0.105) * (1 + vis.pulse * 0.08);
+    ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const txt = String(sim.N - st.first);
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(txt, 3, 4 + fs * 0.04);
+    ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, fs * 0.04);
+    // traînée + balle
+    ctx.lineCap = 'round';
+    const tr = vis.trail;
+    for (let k = 1; k < tr.length; k++) {
+      const a = k / tr.length; ctx.strokeStyle = rgb(pal.halo, a * 0.5); ctx.lineWidth = sim.BR * 1.5 * a;
+      ctx.beginPath(); ctx.moveTo(tr[k - 1][0], tr[k - 1][1]); ctx.lineTo(tr[k][0], tr[k][1]); ctx.stroke();
     }
-
-    // balle
-    ctx.shadowColor = 'rgba(180,150,255,0.95)';
-    ctx.shadowBlur = br * 3;
-    ctx.fillStyle = '#efeaff';
-    ctx.beginPath(); ctx.arc(ball.x, ball.y, br, 0, TAU); ctx.fill();
-    ctx.shadowBlur = 0;
+    const bx = st.x, by = st.y, BR = sim.BR;
+    let g = ctx.createRadialGradient(bx, by, BR * 0.6, bx, by, BR * 3.2);
+    g.addColorStop(0, rgb(pal.halo, .55)); g.addColorStop(1, rgb(pal.halo, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR * 3.2, 0, TAU); ctx.fill();
+    g = ctx.createRadialGradient(bx - BR * .3, by - BR * .3, 0, bx, by, BR);
+    g.addColorStop(0, 'rgb(255,255,230)'); g.addColorStop(1, rgb(pal.ball));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR, 0, TAU); ctx.fill();
   }
 
-  let last = 0;
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000 || 0);
-    last = now;
-    if (running) {
-      // sous-pas pour des collisions fiables à grande vitesse
-      const sub = Math.max(1, Math.ceil(dt * 240 * cfg.speed));
-      for (let s = 0; s < sub; s++) step(dt / sub);
-      trail.push({ x: ball.x, y: ball.y });
-      if (trail.length > 22) trail.shift();
+  // ---------- Audio ----------
+  let actx = null, graph = null, source = null, recDest = null;
+  const FUR_ELISE = 'E5 D#5 E5 D#5 E5 B4 D5 C5 A4 C4 E4 A4 B4 E4 G#4 B4 C5 E4 E5 D#5 E5 D#5 E5 B4 D5 C5 A4 C4 E4 A4 B4 E4 C5 B4 A4 B4 C5 D5 E5 G4 F5 E5 D5 F4 E5 D5 C5 E4 D5 C5 B4'.split(' ');
+  const NOTE = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+  const freq = n => 440 * Math.pow(2, (12 * (+n.slice(-1) + 1) + NOTE[n.slice(0, -1)] - 69) / 12);
+
+  function ensureAudio() {
+    if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = actx.createGain();
+    const comp = actx.createDynamicsCompressor(); comp.threshold.value = -6; comp.ratio.value = 6;
+    master.connect(comp); comp.connect(actx.destination);
+    recDest = actx.createMediaStreamDestination(); comp.connect(recDest);
+    const musicIn = actx.createGain();
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.7;
+    const inGain = actx.createGain(), dryGain = actx.createGain(), wetGain = actx.createGain();
+    const conv = actx.createConvolver(); conv.buffer = makeIR(1.8);
+    const musicBus = actx.createGain(), fxBus = actx.createGain();
+    musicIn.connect(lp); lp.connect(inGain); musicIn.connect(dryGain); musicIn.connect(conv); conv.connect(wetGain);
+    inGain.connect(musicBus); dryGain.connect(musicBus); wetGain.connect(musicBus); musicBus.connect(master);
+    fxBus.connect(master);
+    const piano = actx.createPeriodicWave(new Float32Array([0, 0, 0, 0, 0]), new Float32Array([0, 1, .45, .2, .1]));
+    graph = { master, musicIn, lp, inGain, dryGain, wetGain, musicBus, fxBus, piano };
+    applyMix(true);
+  }
+  function makeIR(sec) {
+    const sr = actx.sampleRate, n = Math.floor(sec * sr), b = actx.createBuffer(2, n, sr);
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); let lpv = 0; for (let i = 0; i < n; i++) { lpv = lpv * 0.6 + (Math.random() * 2 - 1) * 0.4; d[i] = lpv * Math.exp(-i / sr * 3.2); } }
+    return b;
+  }
+  let gateOn = false;
+  function applyMix(instant) {
+    if (!graph) return;
+    const e = S.fxAmt, now = actx.currentTime, out = (song && sim && sim.SYNC) ? (gateOn ? 1 : 0) : 1;
+    const set = (p, v, tc) => instant ? p.setValueAtTime(v, now) : p.setTargetAtTime(v, now, tc);
+    const tc = out ? 0.04 : 0.25;
+    graph.lp.frequency.setValueAtTime(1600 / (1 + e), now);
+    set(graph.inGain.gain, (1 - out) * (1 - 0.45 * Math.min(1, e)), tc);
+    set(graph.dryGain.gain, out * (1 + 0.15 * e) + (e === 0 ? 0 : 0), tc);
+    set(graph.wetGain.gain, out * 0.35 * e, tc);
+    graph.musicBus.gain.setValueAtTime(S.volMus, now);
+    graph.fxBus.gain.setValueAtTime(S.volFx, now);
+  }
+  const sfx = {
+    lastPop: -1, streak: 0, lastBounce: -1, note: 0,
+    tone(f, dur, vol, type, decay) {
+      if (!actx || !playing) return;
+      const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+      if (type === 'piano') o.setPeriodicWave(graph.piano); else o.type = type;
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+      g.gain.setTargetAtTime(0.0001, t + 0.004, 1 / decay);
+      o.connect(g); g.connect(graph.fxBus); o.start(t); o.stop(t + dur);
+    },
+    pop() {
+      if (!playing) return;
+      const t = sim.st.t; if (t - this.lastPop < 0.03) return;
+      this.streak = t - this.lastPop < 0.15 ? this.streak + 1 : 0; this.lastPop = t;
+      if (song) this.tone(1400 * Math.pow(2, Math.min(this.streak, 24) / 24), 0.1, 0.08, 'sine', 45);
+      else this.tone(2093, 0.2, 0.04, 'sine', 18);
+    },
+    bounce() {
+      if (!playing) return;
+      const t = sim.st.t;
+      if (song) { this.tone(330, 0.12, 0.2, 'triangle', 30); return; }
+      if (t - this.lastBounce < 0.07) return; this.lastBounce = t;
+      this.tone(freq(FUR_ELISE[this.note++ % FUR_ELISE.length]), 1.6, 0.25, 'piano', 3);
+    },
+  };
+
+  // ---------- Lecture / boucle ----------
+  let playing = false, recording = false, t0 = 0, perf0 = performance.now() / 1000, lastT = 0;
+  let N = 1500;
+
+  function rebuild() {
+    windows = (song && S.shape === 'cone') ? findDrops() : [];
+    N = windows.length ? countPops(windows) + 300 : 1500;
+    resetSim();
+    drawTimeline();
+    describe();
+  }
+  function resetSim() {
+    const W = playing ? S.res : 720;
+    if (view.width !== W) { view.width = W; view.height = Math.round(W * 16 / 9); }
+    sim = makeSim(1000, N, windows, { pop: onPop, bounce: onBounce });
+    ringCols = buildColors(N);
+    vis = newVisual(); gateOn = sim.st.gate; lastT = 0;
+    perf0 = performance.now() / 1000;
+  }
+  function describe() {
+    if (playing) return;
+    if (!song) { status('Démo sans musique. Ajoute un morceau à droite.'); return; }
+    const m = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    status(`Passage ${m(passageStart)} → ${m(passageStart + S.dur)} · ${windows.length} sortie${windows.length > 1 ? 's' : ''} · compteur ${N}`);
+  }
+  function status(t) { $('status').textContent = t; }
+
+  function frame() {
+    const now = playing ? actx.currentTime - t0 : performance.now() / 1000 - perf0;
+    let target = Math.max(0, now);
+    if (!playing && target > S.dur) { resetSim(); target = 0; }
+    if (target - sim.st.t > 0.5) target = sim.st.t + 0.5; // onglet en pause : pas de rattrapage géant
+    while (sim.st.t + STEP <= target) sim.step(STEP);
+    updateVisual(Math.max(0, sim.st.t - lastT)); lastT = sim.st.t;
+    if (sim.st.gate !== gateOn) { gateOn = sim.st.gate; applyMix(false); }
+    draw();
+    if (playing) {
+      const left = Math.max(0, S.dur - sim.st.t);
+      status((recording ? '● Enregistrement… ' : 'Lecture… ') + left.toFixed(0) + ' s');
+      if (sim.st.t >= S.dur) stop();
     }
-    if (ball) draw();
     requestAnimationFrame(frame);
   }
 
-  function start() {
-    cfg.rings = +document.getElementById('optRings').value;
-    cfg.speed = +document.getElementById('optSpeed').value;
-    cfg.gap = +document.getElementById('optGap').value;
-    cfg.theme = document.getElementById('optTheme').value;
-    soundOn = document.getElementById('optSound').value === '1';
-    audioInit();
-    newGame();
-    menu.classList.add('hidden');
-    running = true;
-    setTimeout(() => { hint.style.opacity = 0; }, 2500);
+  let recorder = null, chunks = [], mime = '', resultBlob = null, wakeLock = null;
+  function pickMime() {
+    if (!window.MediaRecorder) return '';
+    for (const m of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'])
+      if (MediaRecorder.isTypeSupported(m)) return m;
+    return '';
   }
+  async function start(rec) {
+    ensureAudio(); await actx.resume();
+    if (playing) stop(true);
+    playing = true; recording = rec;
+    resetSim(); applyMix(true);
+    sfx.note = 0; sfx.lastPop = -1; sfx.lastBounce = -1;
+    t0 = actx.currentTime + 0.25;
+    if (song) {
+      source = actx.createBufferSource(); source.buffer = song.buffer;
+      const fade = actx.createGain(); source.connect(fade); fade.connect(graph.musicIn);
+      fade.gain.setValueAtTime(0, t0); fade.gain.linearRampToValueAtTime(1, t0 + 0.8);
+      fade.gain.setValueAtTime(1, t0 + S.dur - 2); fade.gain.linearRampToValueAtTime(0, t0 + S.dur);
+      source.start(t0, passageStart, S.dur + 0.1);
+    }
+    if (rec) {
+      mime = pickMime();
+      const stream = view.captureStream(60);
+      recDest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+      chunks = [];
+      recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: S.res >= 1080 ? 12e6 : 8e6 } : undefined);
+      recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      recorder.onstop = finishRecording;
+      recorder.start(500);
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+    }
+    $('play').textContent = '■ Arrêter'; $('record').disabled = true;
+  }
+  function stop(silent) {
+    if (source) { try { source.stop(); } catch (e) {} source = null; }
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    playing = false; recording = false;
+    try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
+    $('play').textContent = '▶ Aperçu'; $('record').disabled = false;
+    if (!silent) { resetSim(); describe(); }
+  }
+  function finishRecording() {
+    resultBlob = new Blob(chunks, { type: (mime || 'video/webm').split(';')[0] });
+    const v = $('resultVideo'); v.src = URL.createObjectURL(resultBlob);
+    $('result').hidden = false;
+    $('saveHint').textContent = `${(resultBlob.size / 1e6).toFixed(1)} Mo · format ${ext().toUpperCase()}.`;
+    status('Vidéo prête. Enregistre-la sur ton appareil en bas.');
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  const ext = () => (mime || 'video/webm').includes('mp4') ? 'mp4' : 'webm';
 
-  document.getElementById('start').addEventListener('click', start);
-  cv.addEventListener('pointerdown', () => {
-    if (menu.classList.contains('hidden')) { menu.classList.remove('hidden'); running = false; }
+  // ---------- Barre du morceau ----------
+  function drawTimeline() {
+    const W = tl.width, H = tl.height;
+    tctx.clearRect(0, 0, W, H); tctx.fillStyle = '#0a0810'; tctx.fillRect(0, 0, W, H);
+    tctx.font = '500 26px Inter, system-ui, sans-serif'; tctx.textBaseline = 'middle';
+    if (!song) { tctx.fillStyle = '#a297b3'; tctx.textAlign = 'center'; tctx.fillText('Ajoute une musique pour voir le morceau ici', W / 2, H / 2); return; }
+    const { db } = song, n = db.length, lo = pct(db, 5), hi = Math.max(...db);
+    const x0 = passageStart / song.length * W, x1 = (passageStart + S.dur) / song.length * W;
+    tctx.fillStyle = 'rgba(255,181,74,.18)'; tctx.fillRect(x0, 0, x1 - x0, H);
+    for (let px = 0; px < W; px += 3) {
+      const i = Math.floor(px / W * n), v = Math.max(0, (db[i] - lo) / (hi - lo + 1e-6)), h = Math.max(2, v * (H - 16));
+      const inside = px >= x0 && px <= x1;
+      tctx.fillStyle = inside ? '#ffb54a' : '#3b2f4d';
+      tctx.fillRect(px, (H - h) / 2, 2, h);
+    }
+    tctx.fillStyle = '#ff5fc8';
+    for (const [a, b] of windows) { const xa = (passageStart + a) / song.length * W, xb = (passageStart + b) / song.length * W; tctx.fillRect(xa, H - 10, Math.max(4, xb - xa), 8); tctx.fillRect(xa, 0, 3, H); }
+    tctx.strokeStyle = '#ffb54a'; tctx.lineWidth = 3; tctx.strokeRect(x0 + 1.5, 1.5, x1 - x0 - 3, H - 3);
+  }
+  function seekFromPointer(e) {
+    if (!song || playing) return;
+    const r = tl.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    passageStart = Math.round(Math.min(Math.max(0, song.length - S.dur), Math.max(0, f * song.length - S.dur / 2)) * 10) / 10;
+    windows = S.shape === 'cone' ? findDrops() : []; drawTimeline();
+  }
+  let dragging = false;
+  tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); seekFromPointer(e); });
+  tl.addEventListener('pointermove', e => { if (dragging) seekFromPointer(e); });
+  tl.addEventListener('pointerup', () => { if (dragging) { dragging = false; rebuild(); } });
+
+  // ---------- Événements ----------
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (playing) stop();
+    $('fileName').textContent = f.name; status('Lecture du morceau…');
+    try {
+      ensureAudio();
+      const buf = await actx.decodeAudioData(await f.arrayBuffer());
+      status('Recherche du meilleur passage et des drops…');
+      await new Promise(r => setTimeout(r, 30));
+      song = analyze(buf);
+      if (song.length < S.dur) $('dur').value = Math.max(15, Math.floor(song.length));
+      passageStart = bestPassage();
+      $('auto').disabled = false;
+      showOutputs(); rebuild();
+    } catch (err) {
+      song = null; drawTimeline();
+      status("Impossible de lire ce fichier. Essaie un MP3, un M4A ou la vidéo TikTok d'origine.");
+    }
+  });
+  $('auto').addEventListener('click', () => { if (song && !playing) { passageStart = bestPassage(); rebuild(); } });
+  $('play').addEventListener('click', () => playing ? stop() : start(false));
+  $('record').addEventListener('click', () => {
+    if (!window.MediaRecorder || !view.captureStream) { status("Ce navigateur ne sait pas enregistrer de vidéo. Essaie Chrome ou Safari à jour."); return; }
+    $('result').hidden = true; start(true);
+  });
+  $('save').addEventListener('click', async () => {
+    if (!resultBlob) return;
+    const dl = await (window.claude?.use ? window.claude.use('downloads') : null);
+    if (!dl) { $('saveHint').textContent = 'Ici, le téléchargement direct n\'est pas disponible : lance la vidéo ci-dessus, puis utilise son menu (⋮ ou appui long) pour l\'enregistrer.'; return; }
+    try {
+      await dl.save({ filename: 'anneaux.' + ext(), data: resultBlob });
+      $('saveHint').textContent = 'Vidéo enregistrée. Tu peux la publier sur TikTok.';
+    } catch (err) {
+      $('saveHint').textContent = err && err.code === 'declined' ? 'Enregistrement annulé.' : 'L\'enregistrement n\'a pas marché. Utilise le menu de la vidéo (⋮ ou appui long).';
+    }
   });
 
-  // aperçu derrière le menu
-  newGame();
-  running = true;
-  requestAnimationFrame(frame);
+  const live = ['volMus', 'volFx', 'fxAmt'];
+  const structural = ['dur', 'sens', 'maxlen', 'shape', 'speed', 'gap', 'rot', 'seed', 'res'];
+  live.forEach(id => $(id).addEventListener('input', () => { showOutputs(); applyMix(true); }));
+  structural.forEach(id => {
+    $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
+    $(id).addEventListener('change', () => { if (playing) stop(true); playing = false; $('play').textContent = '▶ Aperçu'; $('record').disabled = false; rebuild(); });
+  });
+
+  const sw = $('swatches');
+  for (const name in PALETTES) {
+    const b = document.createElement('button'), c = PALETTES[name].rings;
+    b.type = 'button'; b.title = name; b.setAttribute('aria-label', name);
+    b.style.background = `conic-gradient(${c.map(x => rgb(x)).join(',')})`;
+    b.setAttribute('aria-pressed', String(name === paletteName));
+    b.addEventListener('click', () => { paletteName = name; sw.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); ringCols = buildColors(N); });
+    sw.appendChild(b);
+  }
+
+  showOutputs(); rebuild(); requestAnimationFrame(frame);
+  if (document.fonts) document.fonts.ready.then(drawTimeline);
 })();
 </script>
-</body>
-</html>

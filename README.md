@@ -1,4 +1,7 @@
-# Anneaux Infinis
+# Studio Anneaux
+
+`index.html` est une appli web : tu choisis ta musique, elle trouve le meilleur passage et les drops, la balle sort du cercle sur chaque drop (musique pleine + réverb), reste dedans le reste du temps (musique douce et étouffée). Réglages : volumes, intensité de l'effet, couleurs, vitesse, ouverture, rotation, durée. Le bouton « Enregistrer la vidéo » produit un MP4 (ou WebM) avec le son.
+
 
 Une balle rebondit dans des anneaux concentriques qui tournent. Chaque fois qu'elle sort par une ouverture, l'anneau éclate et le compteur descend.
 
