@@ -1,37 +1,102 @@
-// Sauvegarde locale : projets dans localStorage, musiques (fichiers lourds) dans IndexedDB.
+// Sauvegarde locale dans IndexedDB : projets, modèles personnels, musiques.
+// Les anciens projets (localStorage) sont migrés automatiquement au premier lancement.
 // Rien n'est envoyé sur Internet.
 
 import { analyzeBuffer, type MusicAnalysis } from '../engine/analysis';
 import { normalizeSettings } from '../engine/templates';
-import type { Project } from '../engine/types';
+import type { Preset, Project } from '../engine/types';
 import { uid } from '../engine/util';
 
-const KEY = 'orbit.projects.v1';
+const LEGACY_KEY = 'orbit.projects.v1';
 const DB = 'orbit-studio';
-const STORE = 'music';
+type Store = 'music' | 'projects' | 'presets' | 'kv';
 
-export function loadProjects(): Project[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const list = raw ? (JSON.parse(raw) as Project[]) : [];
-    return list.map((p) => ({ ...p, settings: normalizeSettings(p.settings) })).sort((a, b) => b.updatedAt - a.updatedAt);
-  } catch {
-    return [];
+let dbp: Promise<IDBDatabase> | null = null;
+function db(): Promise<IDBDatabase> {
+  dbp ??= new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB, 2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      for (const s of ['music', 'projects', 'presets'] as const) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbp;
+}
+
+async function tx<T>(store: Store, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const t = d.transaction(store, mode);
+    const r = fn(t.objectStore(store));
+    t.oncomplete = () => resolve(r.result);
+    t.onerror = () => reject(t.error ?? r.error);
+    t.onabort = () => reject(t.error ?? new Error('Transaction annulée'));
+  });
+}
+
+export class StorageFullError extends Error {
+  constructor() {
+    super('Stockage du navigateur plein. Exportez une sauvegarde puis supprimez d’anciens projets ou musiques.');
   }
 }
 
-export function saveProjects(list: Project[]) {
+async function guard<T>(p: Promise<T>): Promise<T> {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list));
+    return await p;
   } catch (e) {
-    // quota dépassé : on retire les miniatures les plus anciennes
-    const slim = list.map((p, i) => (i > 10 ? { ...p, thumb: undefined } : p));
-    try {
-      localStorage.setItem(KEY, JSON.stringify(slim));
-    } catch {
-      console.error('Sauvegarde impossible', e);
-      throw e;
-    }
+    if ((e as DOMException)?.name === 'QuotaExceededError') throw new StorageFullError();
+    throw e;
+  }
+}
+
+// ---------------- projets ----------------
+export async function loadProjects(): Promise<Project[]> {
+  await migrateLegacy();
+  const list = await tx<Project[]>('projects', 'readonly', (s) => s.getAll());
+  return list.map((p) => ({ ...p, settings: normalizeSettings(p.settings) })).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export const putProject = (p: Project) => guard(tx('projects', 'readwrite', (s) => s.put(p)));
+export const deleteProject = (id: string) => tx('projects', 'readwrite', (s) => s.delete(id));
+
+async function migrateLegacy() {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(LEGACY_KEY);
+  } catch {
+    return;
+  }
+  if (!raw) return;
+  try {
+    const list = JSON.parse(raw) as Project[];
+    for (const p of list) await putProject({ ...p, settings: normalizeSettings(p.settings) });
+    localStorage.removeItem(LEGACY_KEY);
+  } catch (e) {
+    console.warn('Migration des projets impossible', e);
+  }
+}
+
+// ---------------- modèles personnels ----------------
+export async function loadPresets(): Promise<Preset[]> {
+  const list = await tx<Preset[]>('presets', 'readonly', (s) => s.getAll());
+  return list.map((p) => ({ ...p, settings: normalizeSettings(p.settings) })).sort((a, b) => b.createdAt - a.createdAt);
+}
+export const putPreset = (p: Preset) => guard(tx('presets', 'readwrite', (s) => s.put(p)));
+export const deletePreset = (id: string) => tx('presets', 'readwrite', (s) => s.delete(id));
+
+// ---------------- petites valeurs (cache des miniatures…) ----------------
+export const kvGet = <T>(key: string) => tx<T | undefined>('kv', 'readonly', (s) => s.get(key));
+export const kvSet = (key: string, v: unknown) => guard(tx('kv', 'readwrite', (s) => s.put(v, key)));
+
+export async function storageInfo(): Promise<{ used: number; quota: number; persisted: boolean } | null> {
+  try {
+    const e = await navigator.storage?.estimate?.();
+    if (!e) return null;
+    return { used: e.usage ?? 0, quota: e.quota ?? 0, persisted: (await navigator.storage.persisted?.()) ?? false };
+  } catch {
+    return null;
   }
 }
 
@@ -43,15 +108,7 @@ export async function requestPersistence() {
   }
 }
 
-function db(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
+// ---------------- musiques ----------------
 export interface StoredMusic {
   id: string;
   name: string;
@@ -59,20 +116,10 @@ export interface StoredMusic {
   data: Blob;
 }
 
-async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const d = await db();
-  return new Promise((resolve, reject) => {
-    const t = d.transaction(STORE, mode);
-    const r = fn(t.objectStore(STORE));
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-
-export const putMusic = (m: StoredMusic) => tx('readwrite', (s) => s.put(m));
-export const getMusic = (id: string) => tx<StoredMusic | undefined>('readonly', (s) => s.get(id));
-export const deleteMusic = (id: string) => tx('readwrite', (s) => s.delete(id));
-export const allMusic = () => tx<StoredMusic[]>('readonly', (s) => s.getAll());
+export const putMusic = (m: StoredMusic) => guard(tx('music', 'readwrite', (s) => s.put(m)));
+export const getMusic = (id: string) => tx<StoredMusic | undefined>('music', 'readonly', (s) => s.get(id));
+export const deleteMusic = (id: string) => tx('music', 'readwrite', (s) => s.delete(id));
+export const allMusic = () => tx<StoredMusic[]>('music', 'readonly', (s) => s.getAll());
 
 export async function importMusicFile(file: File): Promise<StoredMusic> {
   const m: StoredMusic = { id: 'm_' + uid(), name: file.name.replace(/\.[^.]+$/, ''), type: file.type || 'audio/mpeg', data: file };
@@ -99,7 +146,7 @@ export function loadMusic(id: string, onProgress?: (p: number) => void): Promise
         const r = ctx.decodeAudioData(ab, res, rej);
         if (r && typeof r.then === 'function') r.then(res, rej);
       });
-      const analysis = await analyzeBuffer(buffer, onProgress);
+      const analysis = await analyzeInWorker(buffer, onProgress);
       return { buffer, analysis };
     })();
     cache.set(id, p);
@@ -108,12 +155,42 @@ export function loadMusic(id: string, onProgress?: (p: number) => void): Promise
   return p;
 }
 
-// ---- sauvegarde / restauration complète ----
+/** Analyse dans un Web Worker (l'interface reste fluide) ; repli sur le fil principal. */
+async function analyzeInWorker(buffer: AudioBuffer, onProgress?: (p: number) => void): Promise<MusicAnalysis> {
+  try {
+    const { default: AnalysisWorker } = await import('../workers/analysis.worker?worker&inline');
+    const w = new AnalysisWorker();
+    const chans = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c).slice());
+    return await new Promise<MusicAnalysis>((resolve, reject) => {
+      w.onmessage = (e: MessageEvent) => {
+        if (e.data.progress !== undefined) onProgress?.(e.data.progress);
+        else if (e.data.error) {
+          w.terminate();
+          reject(new Error(e.data.error));
+        } else {
+          w.terminate();
+          resolve(e.data.analysis as MusicAnalysis);
+        }
+      };
+      w.onerror = (e) => {
+        w.terminate();
+        reject(e);
+      };
+      w.postMessage({ sampleRate: buffer.sampleRate, length: buffer.length, chans }, chans.map((c) => c.buffer));
+    });
+  } catch (e) {
+    console.warn('Analyse dans le fil principal', e);
+    return analyzeBuffer(buffer, onProgress);
+  }
+}
+
+// ---------------- sauvegarde / restauration ----------------
 interface Backup {
   app: 'orbit-studio';
-  version: 1;
+  version: 2;
   exportedAt: number;
   projects: Project[];
+  presets?: Preset[];
   music: { id: string; name: string; type: string; base64: string }[];
 }
 
@@ -133,29 +210,27 @@ function base64ToBlob(b64: string, type: string) {
   return new Blob([bytes], { type });
 }
 
-export async function makeBackup(projects: Project[], includeMusic: boolean): Promise<Blob> {
-  const used = new Set(projects.map((p) => p.settings.audio.musicId).filter(Boolean) as string[]);
+export async function makeBackup(projects: Project[], includeMusic: boolean, presets: Preset[] = []): Promise<Blob> {
+  const used = new Set([...projects, ...presets].map((p) => p.settings.audio.musicId).filter(Boolean) as string[]);
   const music: Backup['music'] = [];
   if (includeMusic) {
     for (const m of await allMusic()) if (used.has(m.id)) music.push({ id: m.id, name: m.name, type: m.type, base64: await blobToBase64(m.data) });
   }
-  const data: Backup = { app: 'orbit-studio', version: 1, exportedAt: Date.now(), projects, music };
+  const data: Backup = { app: 'orbit-studio', version: 2, exportedAt: Date.now(), projects, presets, music };
   return new Blob([JSON.stringify(data)], { type: 'application/json' });
 }
 
-/** Importe une sauvegarde ; renvoie la liste fusionnée des projets. */
-export async function restoreBackup(file: File, current: Project[]): Promise<{ projects: Project[]; added: number }> {
-  const data = JSON.parse(await file.text()) as Partial<Backup> & { settings?: unknown };
+/** Importe une sauvegarde (ou un projet seul) dans la base locale. */
+export async function restoreBackup(file: File): Promise<{ projects: number; presets: number }> {
+  const data = JSON.parse(await file.text()) as Partial<Backup> & Partial<Project>;
   let incoming: Project[] = [];
   if (data.app === 'orbit-studio' && Array.isArray(data.projects)) incoming = data.projects;
-  else if (data && (data as Project).settings && (data as Project).id) incoming = [data as unknown as Project];
+  else if (data.settings && data.id) incoming = [data as Project];
   else throw new Error("Ce fichier n'est pas une sauvegarde Orbit Studio.");
   for (const m of data.music ?? []) await putMusic({ id: m.id, name: m.name, type: m.type, data: base64ToBlob(m.base64, m.type) });
-  const map = new Map(current.map((p) => [p.id, p]));
-  for (const p of incoming) map.set(p.id, { ...p, settings: normalizeSettings(p.settings) });
-  const projects = [...map.values()].sort((a, b) => b.updatedAt - a.updatedAt);
-  saveProjects(projects);
-  return { projects, added: incoming.length };
+  for (const p of incoming) await putProject({ ...p, settings: normalizeSettings(p.settings) });
+  for (const p of data.presets ?? []) await putPreset({ ...p, settings: normalizeSettings(p.settings) });
+  return { projects: incoming.length, presets: data.presets?.length ?? 0 };
 }
 
 export { saveFile as downloadBlob } from './host';

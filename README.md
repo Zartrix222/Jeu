@@ -17,6 +17,36 @@ Fonctionne dans Chrome (Android) et Safari / Chrome (iPhone), sans rien installe
 | **Projets** | Sauvegarde automatique locale (localStorage + IndexedDB pour les musiques), miniatures, duplication, **sauvegarde / restauration en fichier `.json`** (avec ou sans musiques). |
 | **PWA** | Installable sur l'écran d'accueil, fonctionne hors-ligne. |
 
+
+## Nouveautés v3 — studio d'animations musicales
+
+| Domaine | Ce qui est réellement implémenté |
+|---|---|
+| **Physique** | 7 comportements par balle : réaliste (frottements, pertes), arcade, rebonds infinis (énergie conservée exactement), accélération à chaque collision, **rebonds synchronisés sur les temps de la musique** (trajectoire calculée pour toucher le cercle pile sur chaque temps), chaotique, trajectoire programmée (orbite, huit, spirale, Lissajous). Gravité négative possible, accélération continue, frottement de l'air et de contact (rotation de la balle), masse, vitesse max, ralenti global, trajectoire prédite (aperçu). |
+| **Balles** | 8 styles (lumineuse, néon, arc-en-ciel, électrique, flammes, particules, métal, minimaliste), dégradé, opacité, contour, halo, particules émises, rotation visible. Réglages individuels par balle (comportement, style, couleur, taille, masse, vitesse), duplication, sélection en touchant la balle dans l'aperçu. |
+| **Cercles** | Ouverture, rotation, sens alterné, vitesse par cercle, rétrécissement / agrandissement, vibration, pulsation sur les basses, régénération, changement de couleur, destruction, cercles individuels (rotation, épaisseur, ouverture, rayon, couleur). Jusqu'à 2000 anneaux, nombre dessiné limité selon la qualité. |
+| **Collisions** | Particules, onde de choc locale, flash, déformation du cercle, vibration de caméra, variation de couleur, trous (destruction partielle), disparition progressive, multiplication des balles, sons — chaque effet avec son intensité. |
+| **Drop parfait 2.0** | Analyse : graves/médiums/aigus, transitoires, BPM et grille des temps, changements de tempo, passages calmes, montées, pics, transitions. Jusqu'à 5 drops classés par score de confiance, marqués « incertain » quand l'analyse est ambiguë. 13 styles de sortie (dont Supernova, Portal, Shatter, Shockwave, Infinity, Galaxy, Neon Burst, Blackout). Montée : accélération de la balle, vibration et fissures du cercle, rapprochement de caméra, ouverture progressive du son (passe-bas, graves et aigus). |
+| **Création automatique / Création rapide TikTok** | Musique → style (Calme, Énergique, Spectaculaire, Aléatoire, Personnalisé) → drop → durée → aperçu → export 9:16. Le projet généré reste entièrement modifiable. |
+| **Caméra** | Suivi de la balle, zoom selon l'énergie, rapprochement pendant la montée, impulsion au drop, rotation légère, tremblements réglables, douceur, images clés (zoom, rotation, décalage) sur la timeline. |
+| **Rendu** | Bloom, flou de mouvement, vignette, fonds : uni, lueur, dégradé animé, étoiles (parallaxe), tunnel, image importée. 3 niveaux de qualité (Performance, Équilibré, Haute). |
+| **Audio interactif** | Collision → son, cassure → son, drop → explosion et boum, battement → changement de couleur, basse → pulsation, montée → accélération ; chaque son désactivable. Limiteur contre la saturation. |
+| **Export** | 720p, 1080p, 1440p, 4K ; 30/60 i/s ; 9:16, 16:9, 1:1, 4:5, personnalisé. Seules les options que le navigateur sait encoder sont proposées. Rendu dans un **Web Worker avec OffscreenCanvas** (interface fluide), repli sur le fil principal puis sur l'enregistrement temps réel. Capture d'image PNG. |
+| **Projets** | IndexedDB (migration automatique des anciens projets), annuler/rétablir, renommer, dupliquer, modèles personnels, copier/coller/réinitialiser les réglages par onglet, import/export de fichiers, espace de stockage affiché. |
+
+### Limites connues des navigateurs mobiles
+
+- **4K / 1440p** : proposés seulement si l'encodeur du téléphone les accepte ; un export 4K long peut dépasser la mémoire d'un téléphone (taille estimée affichée avant l'export).
+- **Safari iPhone** : WebCodecs vidéo depuis iOS 16.4 ; si l'encodeur audio manque, l'app passe à l'enregistrement temps réel (son conservé, 1080p max).
+- **Plein écran** : l'API plein écran n'existe pas pour une page sur iPhone ; l'app utilise alors un plein écran simulé (aperçu en grand).
+- **Analyse musicale** : la détection de drops et de tempo est heuristique ; elle indique sa confiance et peut se tromper sur des musiques sans drop net.
+
+### Tests
+
+- Automatisés (navigateur Chromium simulant un Pixel 7 et un iPhone 13, sur serveur Linux) : génération des 29 modèles, précision de sortie au drop pour les 13 styles, rebonds sur les temps, déterminisme, détection BPM/drop sur des musiques de test, création automatique, éditeur, annuler/rétablir, sélection tactile d'une balle, formats 16:9 et 1:1, persistance après rechargement, export MP4 via Web Worker (vidéo + son vérifiés avec ffprobe).
+- **Non testé sur de vrais téléphones** (Chrome Android, Safari iPhone) : à vérifier de votre côté, notamment l'export 1080p+ et l'enregistrement dans la galerie.
+- `scripts/render-test.html` (servi par `npm run dev`) affiche une planche de tous les modèles pour contrôle visuel.
+
 ## Démarrer en local
 
 Prérequis : Node.js 20 ou plus.

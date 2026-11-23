@@ -1,0 +1,17 @@
+<!doctype html><html><body style="margin:0;background:#111;display:flex;flex-wrap:wrap;gap:4px">
+<script type="module">
+import { Simulation } from '/src/engine/sim.ts';
+import { renderFrame } from '/src/engine/render.ts';
+import { TEMPLATES, templateSettings } from '/src/engine/templates.ts';
+const t = Number(new URLSearchParams(location.search).get('t') || 10);
+const only = new URLSearchParams(location.search).get('ids');
+for (const tp of TEMPLATES.filter(x => only ? only.split(',').includes(x.id) : x.category)) {
+  const s = templateSettings(tp.id);
+  const sim = new Simulation(s, null);
+  sim.advanceTo(t);
+  const c = document.createElement('canvas'); c.width = 180; c.height = 320; c.title = tp.id;
+  document.body.appendChild(c);
+  renderFrame(c.getContext('2d'), sim, 180, 320, { quality: 'high' });
+}
+document.title = 'done';
+</script></body></html>

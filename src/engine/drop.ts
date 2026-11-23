@@ -128,19 +128,21 @@ export const DROP_PRESETS: Record<DropIntensity, Partial<DropSettings>> = {
   },
 };
 
-// ---- détection automatique ----
+// ---- détection automatique (v2) ----
 export interface DropCandidate {
   time: number; // secondes dans la musique (précision ~1 ms)
-  score: number; // 0..1
+  score: number; // 0..1 (relatif au meilleur)
+  confidence: number; // 0..1 (absolu)
+  certain: boolean; // false = analyse ambiguë
+  reasons: string[];
 }
 
-export function detectDrops(a: MusicAnalysis, max = 3): DropCandidate[] {
+export function detectDrops(a: MusicAnalysis, max = 5): DropCandidate[] {
   const fps = a.fps;
   const n = a.frames;
   if (n < fps * 6) return [];
-  // énergie combinée lissée
   const e = new Float32Array(n);
-  for (let i = 0; i < n; i++) e[i] = a.energy[i] * 0.6 + a.bass[i] * 0.4;
+  for (let i = 0; i < n; i++) e[i] = a.energy[i] * 0.5 + a.bass[i] * 0.3 + (a.low?.[i] ?? a.bass[i]) * 0.2;
   const pre = new Float64Array(n + 1);
   for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + e[i];
   const mean = (i0: number, i1: number) => {
@@ -148,27 +150,47 @@ export function detectDrops(a: MusicAnalysis, max = 3): DropCandidate[] {
     i1 = Math.min(n, i1);
     return i1 > i0 ? (pre[i1] - pre[i0]) / (i1 - i0) : 0;
   };
+  const flux = a.flux ?? new Float32Array(n);
   const before = Math.round(fps * 4);
-  const after = Math.round(fps * 2);
-  const scores = new Float32Array(n);
+  const after = Math.round(fps * 2.5);
+  const raw = new Float32Array(n);
   for (let f = Math.round(fps * 3); f < n - fps; f++) {
     const p = mean(f - before, f - 3);
     const q = mean(f, f + after);
-    if (q < 0.25) continue;
-    scores[f] = q - p + (q > p ? 0.25 * (q - p) / Math.max(0.05, p) : 0);
+    if (q < 0.22 || q <= p) continue;
+    const jump = q - p;
+    const ratio = jump / Math.max(0.06, p);
+    let fl = 0;
+    for (let k = -3; k <= 3; k++) fl = Math.max(fl, flux[f + k] ?? 0);
+    // montée avant le drop : l'énergie des 4 s précédentes augmente
+    const rise = mean(f - fps * 2, f - 3) - mean(f - before, f - fps * 2);
+    raw[f] = jump * 1.2 + Math.min(1.5, ratio) * 0.35 + fl * 0.25 + Math.max(0, rise) * 0.4;
   }
-  // meilleurs maxima séparés d'au moins 8 s
-  const order = Array.from(scores.keys()).filter((f) => scores[f] > 0.05).sort((x, y) => scores[y] - scores[x]);
+  const order = Array.from(raw.keys()).filter((f) => raw[f] > 0.08).sort((x, y) => raw[y] - raw[x]);
   const picked: number[] = [];
   for (const f of order) {
-    if (picked.every((g) => Math.abs(g - f) > fps * 8)) picked.push(f);
+    if (picked.every((g) => Math.abs(g - f) > fps * 6)) picked.push(f);
     if (picked.length >= max) break;
   }
   if (!picked.length) return [];
-  const best = scores[picked[0]];
+  const best = raw[picked[0]];
+  const second = picked[1] !== undefined ? raw[picked[1]] : 0;
   return picked
-    .map((f) => ({ time: refineOnset(a, f), score: Math.min(1, scores[f] / best) }))
-    .sort((x, y) => x.time - y.time);
+    .map((f, i) => {
+      const t = refineOnset(a, f);
+      const conf = Math.max(0, Math.min(1, 1 - Math.exp(-raw[f] * 1.6)));
+      const reasons: string[] = [];
+      const p = mean(f - before, f - 3);
+      const q = mean(f, f + after);
+      reasons.push(`énergie ×${(q / Math.max(0.05, p)).toFixed(1)}`);
+      if (mean(f - fps * 2, f - 3) > mean(f - before, f - fps * 2) + 0.03) reasons.push('précédé d’une montée');
+      if (a.beatGrid?.some((b) => Math.abs(b - t) < 0.08)) reasons.push('sur le temps');
+      if ((a.bass[f + 6] ?? 0) - (a.bass[f - 6] ?? 0) > 0.2) reasons.push('arrivée des basses');
+      // ambigu : confiance faible, ou deux candidats presque à égalité
+      const certain = conf >= 0.55 && !(i === 0 && second > best * 0.9);
+      return { time: t, score: Math.min(1, raw[f] / best), confidence: conf, certain, reasons };
+    })
+    .sort((x, y) => y.score - x.score);
 }
 
 /** Affine l'instant à la montée d'amplitude la plus forte (±250 ms, fenêtres de 5 ms). */

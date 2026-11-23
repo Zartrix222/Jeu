@@ -2,7 +2,7 @@
 
 import type { MusicAnalysis } from './analysis';
 import { LiveAudio } from './audio';
-import { renderFrame } from './render';
+import { renderFrame, type Quality } from './render';
 import { Simulation } from './sim';
 import type { DropEvent, Settings } from './types';
 import { musicMode, musicOffset } from './drop';
@@ -23,6 +23,12 @@ const STRUCTURAL: ((s: Settings) => unknown)[] = [
   (s) => s.audio.musicId,
   (s) => s.audio.startOffset,
   (s) => JSON.stringify(s.drop),
+  (s) => s.export.aspect,
+  (s) => s.export.customW,
+  (s) => s.export.customH,
+  (s) => JSON.stringify(s.balls.list),
+  (s) => s.balls.behavior,
+  (s) => JSON.stringify(s.rings.custom),
 ];
 
 export interface PlayerStats {
@@ -54,6 +60,8 @@ export class Player {
   private lastStats = 0;
   private ro: ResizeObserver;
   private muted = false;
+  quality: Quality = 'balanced';
+  selected = -1;
   private stopAt = Infinity;
   private skipRestart = false;
 
@@ -70,11 +78,11 @@ export class Player {
 
   private resize() {
     const r = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.quality === 'performance' ? 1 : this.quality === 'balanced' ? 1.5 : 2);
     const w = Math.max(90, Math.round(r.width * dpr));
     const h = Math.max(160, Math.round(r.height * dpr));
     // limite la résolution d'aperçu pour rester fluide
-    const k = Math.min(1, 1100 / w);
+    const k = Math.min(1, (this.quality === 'performance' ? 700 : 1100) / w);
     this.canvas.width = Math.round(w * k);
     this.canvas.height = Math.round(h * k);
   }
@@ -250,7 +258,7 @@ export class Player {
       sim.events.length = 0;
       if (sim.t >= this.stopAt - 1 / 120) this.pause();
     }
-    renderFrame(this.ctx, sim, this.canvas.width, this.canvas.height);
+    renderFrame(this.ctx, sim, this.canvas.width, this.canvas.height, { quality: this.quality, selected: this.selected });
     this.emitStats(false);
   };
 
@@ -269,6 +277,37 @@ export class Player {
       phase: this.sim.phase,
       ambience: this.sim.ambience,
     });
+  }
+
+  setQuality(q: Quality) {
+    this.quality = q;
+    this.resize();
+  }
+
+  /** Balle sous le doigt (coordonnées écran) : index ou -1. */
+  pickBall(clientX: number, clientY: number): number {
+    const rect = this.canvas.getBoundingClientRect();
+    const sim = this.sim;
+    const sc = Math.min(rect.width / sim.W, rect.height / sim.H);
+    const ox = (rect.width - sim.W * sc) / 2;
+    const oy = (rect.height - sim.H * sc) / 2;
+    // écran → monde (inverse de la caméra)
+    let x = (clientX - rect.left - ox) / sc - sim.cx;
+    let y = (clientY - rect.top - oy) / sc - sim.cy;
+    const rot = (-sim.cam.rot * Math.PI) / 180;
+    [x, y] = [x * Math.cos(rot) - y * Math.sin(rot), x * Math.sin(rot) + y * Math.cos(rot)];
+    x = x / sim.cam.zoom + sim.cam.x;
+    y = y / sim.cam.zoom + sim.cam.y;
+    let best = -1;
+    let bd = Infinity;
+    sim.balls.forEach((b, i) => {
+      const d = Math.hypot(b.x - x, b.y - y) - b.r;
+      if (d < 70 && d < bd) {
+        bd = d;
+        best = i;
+      }
+    });
+    return best;
   }
 
   destroy() {

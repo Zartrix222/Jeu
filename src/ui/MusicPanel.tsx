@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { allMusic, deleteMusic, importMusicFile, type StoredMusic } from '../lib/storage';
-import { Group, Select, Slider } from './controls';
+import { Group, Select, Slider, Toggle } from './controls';
+import type { MusicAnalysis } from '../engine/analysis';
+import { formatTime } from '../engine/drop';
 import { ask, notify } from '../lib/host';
 import type { PanelProps } from './panels';
 
-export function MusicPanel(p: PanelProps & { duration: number | null; loading: string | null }) {
+export function MusicPanel(p: PanelProps & { duration: number | null; loading: string | null; analysis: MusicAnalysis | null }) {
   const a = p.s.audio;
   const fileRef = useRef<HTMLInputElement>(null);
   const [library, setLibrary] = useState<StoredMusic[]>([]);
@@ -110,6 +112,45 @@ export function MusicPanel(p: PanelProps & { duration: number | null; loading: s
           </>
         )}
       </Group>
+      <Group title="Audio interactif">
+        <p className="hint">Associez chaque événement à un effet. Les sons se désactivent un par un.</p>
+        <div className="map-row">
+          <span>Collision</span>→<Toggle label="Effet sonore" value={a.map.collisionSound} onChange={(v) => p.set('audio.map.collisionSound', v)} />
+        </div>
+        <div className="map-row">
+          <span>Cercle cassé</span>→<Toggle label="Effet sonore" value={a.map.breakSound} onChange={(v) => p.set('audio.map.breakSound', v)} />
+        </div>
+        <div className="map-row">
+          <span>Drop</span>→<Toggle label="Explosion" value={a.map.dropExplosion} onChange={(v) => p.set('audio.map.dropExplosion', v)} />
+        </div>
+        <div className="map-row">
+          <span>Drop</span>→<Toggle label="Boum sonore" value={a.map.dropSound} onChange={(v) => p.set('audio.map.dropSound', v)} />
+        </div>
+        <div className="map-row">
+          <span>Fin</span>→<Toggle label="Jingle" value={a.map.endSound} onChange={(v) => p.set('audio.map.endSound', v)} />
+        </div>
+        <div className="map-row">
+          <span>Battement</span>→<Toggle label="Changement de couleur" value={a.map.beatColor} onChange={(v) => p.set('audio.map.beatColor', v)} />
+        </div>
+        <Slider label="Basse → pulsation du cercle" min={0} max={1} step={0.05} value={a.map.bassPulse} onChange={(v) => p.set('audio.map.bassPulse', v)} />
+        <Slider label="Montée musicale → accélération" min={0} max={1} step={0.05} value={a.map.buildupAccel} onChange={(v) => p.set('audio.map.buildupAccel', v)} />
+      </Group>
+      {p.analysis && (
+        <Group title="Analyse de la musique">
+          <p className="hint">
+            Tempo estimé : <b>{p.analysis.bpm ? `${Math.round(p.analysis.bpm)} BPM` : 'non détecté'}</b>
+            {p.analysis.bpm > 0 && ` (fiabilité ${p.analysis.bpmConfidence > 0.5 ? 'bonne' : p.analysis.bpmConfidence > 0.2 ? 'moyenne' : 'faible'})`}
+          </p>
+          <ul className="sections">
+            {p.analysis.sections.slice(0, 30).map((sec, i) => (
+              <li key={i} className={sec.type}>
+                <span>{formatTime(sec.start).slice(0, 5)}</span> {sec.label}
+              </li>
+            ))}
+            {!p.analysis.sections.length && <li>Aucune section marquée détectée.</li>}
+          </ul>
+        </Group>
+      )}
       {library.length > 0 && (
         <Group title="Mes musiques">
           <ul className="lib">

@@ -14,6 +14,7 @@ export class DropChain {
   input: GainNode;
   output: GainNode;
   private shelf: BiquadFilterNode;
+  private treble: BiquadFilterNode;
   private lp: BiquadFilterNode;
 
   constructor(ctx: BaseAudioContext) {
@@ -21,12 +22,15 @@ export class DropChain {
     this.shelf = ctx.createBiquadFilter();
     this.shelf.type = 'lowshelf';
     this.shelf.frequency.value = 220;
+    this.treble = ctx.createBiquadFilter();
+    this.treble.type = 'highshelf';
+    this.treble.frequency.value = 3500;
     this.lp = ctx.createBiquadFilter();
     this.lp.type = 'lowpass';
     this.lp.Q.value = 0.8;
     this.lp.frequency.value = 20000;
     this.output = ctx.createGain();
-    this.input.connect(this.shelf).connect(this.lp).connect(this.output);
+    this.input.connect(this.shelf).connect(this.treble).connect(this.lp).connect(this.output);
   }
 
   /** Programme l'ambiance : le temps simulation `simFrom` correspond à l'instant `ctxAt` du contexte audio. */
@@ -34,9 +38,11 @@ export class DropChain {
     const fq = this.lp.frequency;
     const sg = this.shelf.gain;
     const vg = this.output.gain;
-    for (const p of [fq, sg, vg]) p.cancelScheduledValues(0);
+    const tg = this.treble.gain;
+    for (const p of [fq, sg, vg, tg]) p.cancelScheduledValues(0);
     if (!tl) {
       fq.setValueAtTime(20000, ctxAt);
+      tg.setValueAtTime(0, ctxAt);
       sg.setValueAtTime(0, ctxAt);
       vg.setValueAtTime(1, ctxAt);
       return;
@@ -44,12 +50,14 @@ export class DropChain {
     const f0 = ambienceAt(tl, simFrom);
     fq.setValueAtTime(cutoffAt(d, f0), ctxAt);
     sg.setValueAtTime(bassAt(d, f0), ctxAt);
+    tg.setValueAtTime(d.calmTreble * (1 - f0), ctxAt);
     vg.setValueAtTime(volumeAt(d, f0), ctxAt);
     for (const [t, f] of tl.keys) {
       if (t <= simFrom) continue;
       const at = ctxAt + (t - simFrom);
       fq.exponentialRampToValueAtTime(cutoffAt(d, f), at);
       sg.linearRampToValueAtTime(bassAt(d, f), at);
+      tg.linearRampToValueAtTime(d.calmTreble * (1 - f), at);
       vg.linearRampToValueAtTime(volumeAt(d, f), at);
     }
   }
@@ -115,6 +123,8 @@ function tone(ctx: BaseAudioContext, dest: AudioNode, when: number, freq: number
 
 /** Joue le bruitage d'un événement à l'instant `when` du contexte. */
 export function playSfx(ctx: BaseAudioContext, dest: AudioNode, when: number, ev: SimEvent, a: AudioSettings) {
+  const m = a.map;
+  if (m && ((ev.type === 'bounce' && !m.collisionSound) || (ev.type === 'break' && !m.breakSound) || (ev.type === 'drop' && !m.dropSound) || (ev.type === 'end' && !m.endSound))) return;
   if (a.sfx === 'none' || a.sfxVolume <= 0) return;
   if (ev.type === 'drop') {
     const v = a.sfxVolume * Math.min(1.5, ev.strength);
