@@ -93,6 +93,44 @@ export interface ExportSettings {
   resolution: 1080 | 720;
 }
 
+export type DropStyle = 'pass' | 'open' | 'explode' | 'vanish' | 'chain';
+export type DropIntensity = 'soft' | 'power' | 'extreme';
+
+export interface DropEvent {
+  id: string;
+  time: number; // secondes dans la musique (ou dans l'animation sans musique)
+  style: DropStyle;
+  intensity: DropIntensity;
+  freeFor: number; // secondes hors du cercle avant d'y revenir (0 = automatique / jusqu'à la fin)
+  extraBalls: number; // balles supplémentaires libérées au drop
+}
+
+export interface DropSettings {
+  enabled: boolean;
+  events: DropEvent[];
+  calmVolume: number; // volume avant le drop (0..1)
+  calmCutoff: number; // filtre passe-bas avant le drop (Hz)
+  calmBass: number; // basses avant le drop (dB)
+  afterVolume: number;
+  afterBass: number; // dB
+  buildUp: number; // durée de la montée de tension (s)
+  buildLevel: number; // ouverture du filtre à la fin de la montée (0..1)
+  transitionIn: number; // durée de la transition au drop (s)
+  transitionOut: number; // durée du retour au calme (s)
+  slowMo: number; // durée du ralenti avant la sortie (s)
+  slowMoFactor: number; // vitesse pendant le ralenti (0.1..1)
+  calmEffects: number; // intensité des effets avant le drop (0..1)
+  calmColors: number; // atténuation des couleurs avant le drop (0..1)
+  afterEffects: number; // intensité des effets après le drop (1..3)
+  particles: number; // quantité de particules de l'explosion
+  explosionSize: number;
+  flash: number; // 0..1
+  shockwave: boolean;
+  exitSpeed: number; // vitesse de la balle à la sortie (px/s)
+  trailBoost: number; // allongement de la traînée après le drop
+  afterPalette: string[]; // couleurs des cercles après le drop ([] = identiques)
+}
+
 export interface Settings {
   seed: number;
   balls: BallSettings;
@@ -101,6 +139,7 @@ export interface Settings {
   counter: CounterSettings;
   audio: AudioSettings;
   export: ExportSettings;
+  drop: DropSettings;
 }
 
 export interface Project {

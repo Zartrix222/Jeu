@@ -11,6 +11,7 @@ Fonctionne dans Chrome (Android) et Safari / Chrome (iPhone), sans rien installe
 | **Moteur physique 2D** | Moteur maison déterministe (pas fixe 1/120 s, aléatoire à graine) spécialisé pour des balles *à l'intérieur* d'anneaux concaves en rotation : parois mobiles, ouvertures, destruction, collisions entre balles, bords d'écran. L'aperçu et l'export donnent exactement la même animation. |
 | **Rendu** | Canvas 2D optimisé : jusqu'à 2000 anneaux, palettes en bandes / dégradé / arc-en-ciel, cercle intérieur lumineux, halo néon, poussière scintillante, particules et explosions, traînées (comète, ruban, échos), flash, tremblement, visualiseur audio circulaire en fin d'animation. |
 | **Musique** | Import depuis les fichiers du téléphone. Mode **« joue aux rebonds »** (la musique n'avance que quand la balle touche/casse un cercle, comme sur TikTok) ou **continu** (cercles, flash et balle réagissent au rythme : analyse spectrale + détection des temps forts). Bruitages synthétisés (notes en gamme, pop). Mode sans musique. |
+| **Drop parfait** | La balle reste enfermée (musique étouffée : filtre passe-bas, basses et volume réduits, effets et couleurs atténués), une montée de tension s'installe, puis la balle touche le bord **exactement** au moment du drop : le cercle traverse / s'ouvre / explose / disparaît / casse en chaîne, la musique retrouve sa puissance, explosion, onde de choc, flash, ralenti avant l'impact, traînée allongée. Détection automatique de 3 drops dans la musique, timeline (forme d'onde, intensité, drops détectés, marqueurs déplaçables, transitions calme ↔ drop), réglage à la milliseconde, mode interactif (bouton « Déclencher le drop » enregistré dans la timeline), plusieurs drops avec retour dans un cercle, intensités Doux / Puissant / Extrême et tous les paramètres modifiables. |
 | **Modèles** | Balle dans un cercle · Balle destructrice · Plusieurs balles · Cercles infinis · Traînée lumineuse · Cercles musicaux · Arc-en-ciel · Personnalisée. |
 | **Export vidéo** | Rendu image par image avec **WebCodecs** → **MP4 H.264** (+ audio AAC ou Opus) à 30 ou 60 i/s, 1080 × 1920 (ou 720 × 1280), durée au choix ou « auto » (jusqu'au dernier anneau). Secours automatique : enregistrement temps réel (MediaRecorder, MP4 ou WebM). Bouton **Partager / Enregistrer dans Photos** et téléchargement. |
 | **Projets** | Sauvegarde automatique locale (localStorage + IndexedDB pour les musiques), miniatures, duplication, **sauvegarde / restauration en fichier `.json`** (avec ou sans musiques). |
@@ -88,9 +89,17 @@ src/
     audio.ts        bruitages, lecture musique (continue / aux rebonds), rendu audio hors-ligne
     player.ts       aperçu temps réel (horloge synchronisée sur l'audio)
     exporter.ts     export MP4 WebCodecs + secours MediaRecorder
+    drop.ts         mode Drop parfait : chronologie, ambiance, ralenti, intensités, détection des drops
   lib/              stockage local, sauvegardes, miniatures
   ui/               écrans React (accueil, éditeur, panneaux de réglages, export)
 functions/_middleware.js   protection par mot de passe (Cloudflare Pages)
 public/                    icônes PWA, en-têtes, robots.txt
 scripts/icons.cjs          régénère les icônes PNG depuis public/icon.svg
 ```
+
+## Comment fonctionne la synchronisation du Drop parfait
+
+- Le temps de référence est celui de la **musique** : un drop à `00:32,500` est déclenché quand la musique atteint 32,5 s, dans l'aperçu comme dans l'export.
+- La simulation est déterministe (pas fixe de 1/120 s). Environ une seconde avant le drop, le moteur **calcule la trajectoire** (gravité et ralenti compris) pour que la balle touche le bord du cercle au pas exact du drop.
+- Le son (filtre, basses, volume) suit une courbe d'automatisation calculée à partir des mêmes instants ; l'export la rend hors-ligne, sans aucune dérive.
+- Si l'aperçu ralentit sur un téléphone, l'image rattrape la musique sans décaler les drops ; l'export, calculé image par image, n'est jamais affecté.

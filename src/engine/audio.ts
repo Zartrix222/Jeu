@@ -2,7 +2,58 @@
 // et rendu hors-ligne identique pour l'export vidéo.
 
 import type { MusicSegment, SimEvent } from './sim';
-import type { AudioSettings } from './types';
+import type { AudioSettings, DropSettings, Settings } from './types';
+import { ambienceAt, bassAt, cutoffAt, musicMode, volumeAt, type DropTimeline } from './drop';
+
+/**
+ * Chaîne « ambiance » du mode drop : basses (low-shelf) → filtre passe-bas → volume.
+ * Les automatisations sont calculées à partir de la même courbe que l'image,
+ * en direct comme dans le rendu hors-ligne de l'export.
+ */
+export class DropChain {
+  input: GainNode;
+  output: GainNode;
+  private shelf: BiquadFilterNode;
+  private lp: BiquadFilterNode;
+
+  constructor(ctx: BaseAudioContext) {
+    this.input = ctx.createGain();
+    this.shelf = ctx.createBiquadFilter();
+    this.shelf.type = 'lowshelf';
+    this.shelf.frequency.value = 220;
+    this.lp = ctx.createBiquadFilter();
+    this.lp.type = 'lowpass';
+    this.lp.Q.value = 0.8;
+    this.lp.frequency.value = 20000;
+    this.output = ctx.createGain();
+    this.input.connect(this.shelf).connect(this.lp).connect(this.output);
+  }
+
+  /** Programme l'ambiance : le temps simulation `simFrom` correspond à l'instant `ctxAt` du contexte audio. */
+  schedule(tl: DropTimeline | null, d: DropSettings, simFrom: number, ctxAt: number) {
+    const fq = this.lp.frequency;
+    const sg = this.shelf.gain;
+    const vg = this.output.gain;
+    for (const p of [fq, sg, vg]) p.cancelScheduledValues(0);
+    if (!tl) {
+      fq.setValueAtTime(20000, ctxAt);
+      sg.setValueAtTime(0, ctxAt);
+      vg.setValueAtTime(1, ctxAt);
+      return;
+    }
+    const f0 = ambienceAt(tl, simFrom);
+    fq.setValueAtTime(cutoffAt(d, f0), ctxAt);
+    sg.setValueAtTime(bassAt(d, f0), ctxAt);
+    vg.setValueAtTime(volumeAt(d, f0), ctxAt);
+    for (const [t, f] of tl.keys) {
+      if (t <= simFrom) continue;
+      const at = ctxAt + (t - simFrom);
+      fq.exponentialRampToValueAtTime(cutoffAt(d, f), at);
+      sg.linearRampToValueAtTime(bassAt(d, f), at);
+      vg.linearRampToValueAtTime(volumeAt(d, f), at);
+    }
+  }
+}
 
 const SCALES: Record<AudioSettings['scale'], number[]> = {
   pentatonic: [0, 2, 4, 7, 9],
@@ -65,6 +116,33 @@ function tone(ctx: BaseAudioContext, dest: AudioNode, when: number, freq: number
 /** Joue le bruitage d'un événement à l'instant `when` du contexte. */
 export function playSfx(ctx: BaseAudioContext, dest: AudioNode, when: number, ev: SimEvent, a: AudioSettings) {
   if (a.sfx === 'none' || a.sfxVolume <= 0) return;
+  if (ev.type === 'drop') {
+    const v = a.sfxVolume * Math.min(1.5, ev.strength);
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, when);
+    o.frequency.exponentialRampToValueAtTime(38, when + 0.5);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.55 * v, when + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.7);
+    o.connect(g).connect(dest);
+    o.start(when);
+    o.stop(when + 0.75);
+    const n = ctx.createBufferSource();
+    n.buffer = noise(ctx);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(6000, when);
+    lp.frequency.exponentialRampToValueAtTime(300, when + 0.18);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.35 * v, when);
+    ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.19);
+    n.connect(lp).connect(ng).connect(dest);
+    n.start(when);
+    n.stop(when + 0.2);
+    return;
+  }
   if (ev.type !== 'bounce' && ev.type !== 'break' && ev.type !== 'end') return;
   let last = lastSfx.get(ctx);
   if (!last) {
@@ -127,6 +205,7 @@ export class LiveAudio {
   out: AudioNode;
   music: GainNode;
   sfx: GainNode;
+  chain: DropChain;
   buffer: AudioBuffer | null = null;
   private src: { node: AudioBufferSourceNode; gain: GainNode; seg: number; end: number } | null = null;
   private handled = 0;
@@ -139,7 +218,9 @@ export class LiveAudio {
     this.sfx = this.ctx.createGain();
     const comp = limiter(this.ctx);
     comp.connect(this.out);
-    this.music.connect(comp);
+    this.chain = new DropChain(this.ctx);
+    this.music.connect(this.chain.input);
+    this.chain.output.connect(comp);
     this.sfx.connect(comp);
   }
 
@@ -224,6 +305,23 @@ export class LiveAudio {
     this.handled = 0;
   }
 
+  /** Écoute brute d'un extrait de la musique (sans filtre). */
+  listen(from: number, dur: number) {
+    this.stopMusic();
+    if (!this.buffer) return;
+    const node = this.ctx.createBufferSource();
+    node.buffer = this.buffer;
+    const gain = this.ctx.createGain();
+    const now = this.ctx.currentTime + 0.02;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(1, now + 0.02);
+    gain.gain.setValueAtTime(1, now + dur - 0.15);
+    gain.gain.linearRampToValueAtTime(0, now + dur);
+    node.connect(gain).connect(this.out);
+    node.start(now, Math.max(0, from), dur + 0.05);
+    this.src = { node, gain, seg: -1, end: Infinity };
+  }
+
   playEvent(ev: SimEvent, a: AudioSettings) {
     playSfx(this.ctx, this.sfx, this.ctx.currentTime + 0.005, ev, a);
   }
@@ -237,20 +335,26 @@ export class LiveAudio {
 /** Rendu audio hors-ligne pour l'export (musique + bruitages), identique à l'aperçu. */
 export async function renderAudioOffline(opts: {
   duration: number;
+  settings: Settings;
+  tl: DropTimeline | null;
   audio: AudioSettings;
   buffer: AudioBuffer | null;
   segments: MusicSegment[];
   events: SimEvent[];
   sampleRate: number;
 }): Promise<AudioBuffer> {
-  const { duration, audio, buffer, segments, events, sampleRate } = opts;
+  const { duration, buffer, segments, events, sampleRate } = opts;
+  const audio = { ...opts.audio, mode: musicMode(opts.settings) };
   const len = Math.max(1, Math.ceil(duration * sampleRate));
   const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: len, sampleRate });
   const comp = limiter(ctx);
   comp.connect(ctx.destination);
   const music = ctx.createGain();
   music.gain.value = audio.musicVolume;
-  music.connect(comp);
+  const chain = new DropChain(ctx);
+  music.connect(chain.input);
+  chain.output.connect(comp);
+  chain.schedule(opts.tl, opts.settings.drop, 0, 0);
   const sfx = ctx.createGain();
   sfx.connect(comp);
 

@@ -11,6 +11,7 @@ import { LiveAudio, renderAudioOffline } from './audio';
 import { renderFrame } from './render';
 import { SIM_DT, Simulation, type SimEvent } from './sim';
 import type { Settings } from './types';
+import { buildDropTimeline, musicMode, musicOffset } from './drop';
 
 export interface ExportResult {
   blob: Blob;
@@ -36,6 +37,14 @@ const MAX_DURATION = 180;
 /** Durée automatique : jusqu'à la destruction du dernier anneau + 5 s de final. */
 export function computeDuration(s: Settings, analysis: MusicAnalysis | null): number {
   if (s.export.duration > 0) return Math.min(MAX_DURATION, s.export.duration);
+  const hasMusic = !!analysis && s.audio.mode !== 'none';
+  const tl = buildDropTimeline(s, hasMusic);
+  if (tl && tl.points.length) {
+    const last = tl.points[tl.points.length - 1];
+    let dur = last.T + (Number.isFinite(last.R) ? last.R - last.T + 3 : 8);
+    if (hasMusic && musicMode(s) === 'continuous') dur = Math.min(dur, analysis!.duration - musicOffset(s, true));
+    return Math.max(3, Math.min(MAX_DURATION, Math.ceil(dur)));
+  }
   if (s.rings.infinite || s.rings.count === 0 || (!s.rings.breakable && s.rings.hitsToBreak === 0)) {
     if (analysis && s.audio.mode === 'continuous') return Math.min(60, Math.max(5, analysis.duration - s.audio.startOffset));
     return 30;
@@ -184,6 +193,8 @@ async function exportWebCodecs(
     o.onProgress(0.9, 'Mixage audio…');
     const audioBuf = await renderAudioOffline({
       duration,
+      settings: s,
+      tl: sim.tl,
       audio: s.audio,
       buffer: s.audio.mode !== 'none' ? o.buffer : null,
       segments: sim.segments,
@@ -273,8 +284,9 @@ async function exportRealtime(o: ExportOptions, duration: number): Promise<Expor
   const done = new Promise<void>((r) => (rec.onstop = () => r()));
   rec.start(500);
 
-  const c0 = audio.ctx.currentTime + 0.05;
-  if (s.audio.mode === 'continuous' && o.buffer) audio.startContinuous(s.audio.startOffset);
+  const c0 = audio.ctx.currentTime + 0.02;
+  if (musicMode(s) === 'continuous' && o.buffer) audio.startContinuous(s.audio.startOffset);
+  audio.chain.schedule(sim.tl, s.drop, 0, c0);
   await new Promise<void>((resolve, reject) => {
     const loop = () => {
       if (o.signal.aborted) {
@@ -285,7 +297,7 @@ async function exportRealtime(o: ExportOptions, duration: number): Promise<Expor
       sim.advanceTo(t);
       for (const ev of sim.events) audio.playEvent(ev, s.audio);
       sim.events.length = 0;
-      if (s.audio.mode === 'bounce') audio.syncSegments(sim.segments, sim.t);
+      if (musicMode(s) === 'bounce') audio.syncSegments(sim.segments, sim.t);
       renderFrame(ctx, sim, width, height);
       o.onProgress(t / duration, `Enregistrement en temps réel — ${Math.floor(t)} / ${Math.round(duration)} s`);
       if (t >= duration) resolve();

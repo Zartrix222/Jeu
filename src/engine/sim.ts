@@ -5,7 +5,8 @@
 
 import type { MusicAnalysis } from './analysis';
 import { frameAt } from './analysis';
-import type { Settings } from './types';
+import { INTENSITY, ambienceAt, buildDropTimeline, musicMode, timeScaleAt, type DropTimeline } from './drop';
+import type { DropIntensity, DropStyle, Settings } from './types';
 import { WORLD_H, WORLD_W } from './types';
 import { TAU, angDiff, hexToRgb, hslToRgb, mulberry32, type RGB } from './util';
 
@@ -33,6 +34,7 @@ export interface Ring {
   prevR: number;
   hits: number;
   hitFlash: number;
+  home: number; // position d'origine (cercles qui ne se resserrent pas)
 }
 
 export interface Particle {
@@ -54,10 +56,11 @@ export interface Ghost {
   angle: number;
   idx: number;
   t0: number;
+  fade?: boolean; // disparition (sans expansion)
 }
 
 export interface SimEvent {
-  type: 'bounce' | 'break' | 'beat' | 'end';
+  type: 'bounce' | 'break' | 'beat' | 'end' | 'drop' | 'rejoin';
   t: number;
   strength: number;
   n: number; // index séquentiel (pour la mélodie)
@@ -101,9 +104,36 @@ export class Simulation {
   readonly cx: number;
   readonly cy: number;
 
+  // ---- mode Drop parfait ----
+  readonly hasMusic: boolean;
+  tl: DropTimeline | null = null;
+  phase: 'calm' | 'free' = 'free';
+  ambience = 1; // 0 = calme (balle enfermée), 1 = puissance maximale
+  tension = 0; // montée de tension avant le prochain drop (0..1)
+  timeScale = 1; // ralenti
+  exitAngle = 0;
+  crackFrom = Infinity;
+  crackT = Infinity;
+  dropGap = 0;
+  lastDrop: { t: number; intensity: DropIntensity; style: DropStyle } | null = null;
+  shockwaves: { t0: number; strength: number }[] = [];
+  plan: { T: number; ok: boolean } | null = null;
+  private dtp = SIM_DT;
+  private nextDrop = 0;
+  private rejoinAt = Infinity;
+  private noBreak = false;
+  private heroBounced = false;
+  private chain: { t: number; ring: Ring }[] = [];
+
   constructor(settings: Settings, analysis: MusicAnalysis | null) {
     this.s = settings;
     this.analysis = settings.audio.mode !== 'none' ? analysis : null;
+    this.hasMusic = !!this.analysis;
+    this.tl = buildDropTimeline(settings, this.hasMusic);
+    if (this.tl) {
+      this.phase = 'calm';
+      this.ambience = ambienceAt(this.tl, 0);
+    }
     this.rng = mulberry32(settings.seed * 9973 + 17);
     this.fx = mulberry32(settings.seed * 31 + 5);
     this.cx = WORLD_W / 2;
@@ -149,7 +179,7 @@ export class Simulation {
     const base = -Math.PI / 4;
     const angle = base + (rs.twist * idx * Math.PI) / 180 + ((this.rng() - 0.5) * rs.jitter * Math.PI) / 180;
     const r = rs.innerRadius + slot * rs.spacing;
-    return { idx, alive: true, angle, r, prevR: r, hits: 0, hitFlash: 0 };
+    return { idx, alive: true, angle, r, prevR: r, hits: 0, hitFlash: 0, home: slot };
   }
 
   /** Remplace les réglages « vivants » (couleurs, gravité…) sans redémarrer. */
@@ -163,6 +193,46 @@ export class Simulation {
 
   get remaining() {
     return this.alive.length;
+  }
+
+  /** Multiplicateur des effets selon l'ambiance (1 hors mode drop). */
+  get fxMul() {
+    if (!this.tl) return 1;
+    const d = this.s.drop;
+    return Math.max(0.05, d.calmEffects + (d.afterEffects - d.calmEffects) * this.ambience);
+  }
+
+  /** Ouverture visible et physique d'un anneau : [angle (rad), ouverture (degrés)]. */
+  ringGap(R: Ring): [number, number] {
+    if (!this.tl) return [R.angle, this.s.rings.gap];
+    if (this.phase === 'calm') {
+      if (this.t >= this.crackFrom && this.t < this.crackT) {
+        const u = (this.t - this.crackFrom) / (this.crackT - this.crackFrom);
+        const style = this.tl.points[this.nextDrop]?.ev.style;
+        if (style === 'pass' || style === 'open') return [this.exitAngle, this.dropGapFor(style) * 0.6 * u * u];
+      }
+      return [R.angle, 0];
+    }
+    const open = this.lastDrop ? Math.min(1, (this.t - this.lastDrop.t) / 0.6) : 1;
+    return [R.angle, Math.max(this.s.rings.gap * open, this.dropGap)];
+  }
+
+  private dropGapFor(style: DropStyle) {
+    return style === 'open' ? Math.max(this.s.rings.gap, 75) : style === 'pass' ? Math.max(this.s.rings.gap, 44) : 0;
+  }
+
+  /** Ajoute / modifie des drops pendant la lecture (mode interactif) sans redémarrer. */
+  rebuildDrops(s: Settings) {
+    this.s = s;
+    this.tl = buildDropTimeline(s, this.hasMusic);
+    if (!this.tl) {
+      this.phase = 'free';
+      this.ambience = 1;
+      return;
+    }
+    const i = this.tl.points.findIndex((p) => p.T > this.t + 1e-6);
+    this.nextDrop = i < 0 ? this.tl.points.length : i;
+    this.plan = null;
   }
 
   get finished() {
@@ -192,10 +262,19 @@ export class Simulation {
   }
 
   step() {
-    const dt = SIM_DT;
     const s = this.s;
-    this.t += dt;
-    this.updateMusic(dt);
+    const tl = this.tl;
+    this.timeScale = timeScaleAt(tl, s.drop, this.t);
+    const dt = SIM_DT * this.timeScale; // temps physique (ralenti possible)
+    this.dtp = dt;
+    this.t += SIM_DT;
+    this.updateMusic(SIM_DT);
+    if (tl) {
+      this.ambience = ambienceAt(tl, this.t);
+      const next = tl.points[this.nextDrop];
+      this.tension = next && this.phase === 'calm' && s.drop.buildUp > 0 ? Math.max(0, Math.min(1, 1 - (next.T - this.t) / s.drop.buildUp)) : 0;
+      if (this.phase === 'free' && this.t >= this.rejoinAt) this.rejoin();
+    }
 
     // anneaux : rotation et resserrement
     const rs = s.rings;
@@ -206,7 +285,7 @@ export class Simulation {
       R.prevR = R.r;
       const mul = 1 + rs.speedSpread * (j / Math.max(1, rs.count));
       R.angle += rot * mul * dt;
-      const target = rs.collapse ? rs.innerRadius + j * rs.spacing : rs.innerRadius + R.idx * rs.spacing;
+      const target = rs.collapse ? rs.innerRadius + j * rs.spacing : rs.innerRadius + R.home * rs.spacing;
       const diff = target - R.r;
       if (diff !== 0) {
         const maxMove = (rs.collapseSpeed + Math.abs(diff) * 3) * dt;
@@ -222,27 +301,49 @@ export class Simulation {
       b.x += b.vx * dt;
       b.y += b.vy * dt;
     }
+    // déclenchement du drop : après le déplacement, avant les collisions
+    if (tl && this.phase === 'calm') {
+      const next = tl.points[this.nextDrop];
+      if (next && this.t >= next.T - 1e-9) this.triggerDrop();
+    }
+    this.heroBounced = false;
     if (bs.ballCollisions && this.balls.length > 1) this.ballCollisions();
+    const hero = this.balls[0];
     for (const b of this.balls) {
       this.ringCollisions(b);
-      if (rs.walls || this.alive.length === 0) this.walls(b);
+      if (rs.walls || this.alive.length === 0 || (tl && this.phase === 'free')) this.walls(b);
       const sp = Math.hypot(b.vx, b.vy);
-      if (sp > bs.maxSpeed) {
+      if (sp > bs.maxSpeed && !(this.plan && b === hero)) {
         b.vx *= bs.maxSpeed / sp;
         b.vy *= bs.maxSpeed / sp;
       }
       b.prevD = Math.hypot(b.x - this.cx, b.y - this.cy);
     }
+    while (this.chain.length && this.chain[0].t <= this.t) {
+      const c = this.chain.shift()!;
+      this.breakRing(c.ring, hero ?? null, true, 0.6);
+    }
     if (this.dirty) {
       this.alive = this.alive.filter((r) => r.alive);
       this.dirty = false;
+    }
+    // préparation de la trajectoire de sortie
+    if (tl && this.phase === 'calm' && hero && !this.plan) {
+      const next = tl.points[this.nextDrop];
+      if (next) {
+        const lead = next.T - this.t;
+        const leadMax = 1.3 + s.drop.slowMo;
+        const leadMin = 0.45 + s.drop.slowMo * 0.5;
+        if (lead > 0.1 && lead <= leadMax && (this.heroBounced || lead <= leadMin)) this.tryPlan(next.T, lead <= 0.25);
+      }
     }
 
     // traînées (échantillonnées à 60/s quel que soit le pas)
     this.trailAcc += dt;
     if (this.trailAcc >= 1 / 60) {
       this.trailAcc -= 1 / 60;
-      const maxPts = Math.max(1, Math.round(bs.trailLength)) * 2;
+      const boost = tl && this.phase === 'free' ? s.drop.trailBoost : 1;
+      const maxPts = Math.max(1, Math.round(bs.trailLength * boost)) * 2;
       for (const b of this.balls) {
         b.trail.push(b.x, b.y);
         if (b.trail.length > maxPts) b.trail.splice(0, b.trail.length - maxPts);
@@ -250,12 +351,14 @@ export class Simulation {
     }
 
     this.updateParticles(dt);
-    if (this.ghosts.length && this.t - this.ghosts[0].t0 > 0.5) this.ghosts = this.ghosts.filter((g) => this.t - g.t0 < 0.5);
+    if (this.ghosts.length && this.t - this.ghosts[0].t0 > 0.7) this.ghosts = this.ghosts.filter((g) => this.t - g.t0 < 0.7);
+    if (this.shockwaves.length && this.t - this.shockwaves[0].t0 > 1.2) this.shockwaves.shift();
     this.shake *= Math.exp(-dt * 7);
     this.flash *= Math.exp(-dt * 6);
     this.pulse *= Math.exp(-dt * 5);
 
-    if (!rs.infinite && this.finishedAt === null && this.rings.length > 0 && this.alive.length === 0) {
+    const dropPending = !!tl && (this.nextDrop < tl.points.length || Number.isFinite(this.rejoinAt));
+    if (!rs.infinite && !dropPending && this.finishedAt === null && this.rings.length > 0 && this.alive.length === 0) {
       this.finishedAt = this.t;
       this.events.push({ type: 'end', t: this.t, strength: 1, n: this.destroyed });
       if (s.effects.flash) this.flash = 1;
@@ -263,9 +366,184 @@ export class Simulation {
     }
   }
 
+  // ======================= mode Drop parfait =======================
+
+  /**
+   * Calcule une vitesse pour que la balle principale touche le bord du cercle
+   * exactement à l'instant T (intégration discrète identique au moteur, ralenti compris).
+   */
+  private tryPlan(T: number, last: boolean) {
+    const b = this.balls[0];
+    const R = this.alive[0];
+    if (!b || !R) return;
+    const rs = this.s.rings;
+    const n = Math.ceil((T - this.t) / SIM_DT - 1e-9);
+    if (n < 4) return;
+    const dts: number[] = [];
+    for (let k = 0; k < n; k++) dts.push(SIM_DT * timeScaleAt(this.tl, this.s.drop, this.t + k * SIM_DT));
+    let D = 0;
+    let S = 0;
+    let C = 0;
+    for (const dt of dts) {
+      C += dt;
+      D += dt;
+      S += dt * C;
+    }
+    const g = this.s.balls.gravity;
+    const limit = R.r - rs.thickness / 2 - b.r - 0.05;
+    const d0 = Math.hypot(b.x - this.cx, b.y - this.cy);
+    if (limit < 5 || d0 > limit + 0.5 || Math.abs(R.r - R.prevR) > 0.01) return;
+    const vmax = Math.max(this.s.balls.maxSpeed, 2400);
+    const cur = Math.hypot(b.vx, b.vy);
+    let best: { vx: number; vy: number; a: number; cost: number } | null = null;
+    const N = 64;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * TAU;
+      const tx = this.cx + Math.cos(a) * limit;
+      const ty = this.cy + Math.sin(a) * limit;
+      const vx = (tx - b.x) / D;
+      const vy = (ty - b.y - g * S) / D;
+      const sp = Math.hypot(vx, vy);
+      if (sp > vmax || sp < 150) continue;
+      // vérifie que la trajectoire reste dans le cercle jusqu'au dernier pas
+      let x = b.x;
+      let y = b.y;
+      let wy = vy;
+      let ok = true;
+      for (let k = 0; k < n - 1; k++) {
+        wy += g * dts[k];
+        x += vx * dts[k];
+        y += wy * dts[k];
+        if (Math.hypot(x - this.cx, y - this.cy) >= limit - 0.1) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+      const fy = wy + g * dts[n - 1];
+      const radial = vx * Math.cos(a) + fy * Math.sin(a);
+      if (radial < 120) continue;
+      const cost = Math.hypot(vx - b.vx, vy - b.vy) + 0.25 * Math.abs(sp - cur) - radial * 0.2;
+      if (!best || cost < best.cost) best = { vx, vy, a, cost };
+    }
+    if (!best) {
+      if (last) this.plan = { T, ok: false };
+      return;
+    }
+    b.vx = best.vx;
+    b.vy = best.vy;
+    this.exitAngle = best.a;
+    this.plan = { T, ok: true };
+    this.crackFrom = T - Math.min(0.4, (T - this.t) * 0.6);
+    this.crackT = T;
+  }
+
+  private triggerDrop() {
+    const tl = this.tl!;
+    const p = tl.points[this.nextDrop++];
+    const d = this.s.drop;
+    const I = INTENSITY[p.ev.intensity];
+    const hero = this.balls[0];
+    if (!this.plan?.ok && hero) this.exitAngle = Math.atan2(hero.y - this.cy, hero.x - this.cx);
+    this.plan = null;
+    this.crackFrom = this.crackT = Infinity;
+    this.phase = 'free';
+    this.rejoinAt = p.R;
+    this.lastDrop = { t: this.t, intensity: p.ev.intensity, style: p.ev.style };
+    this.noBreak = p.ev.style === 'open';
+    this.dropGap = this.dropGapFor(p.ev.style);
+    const rs = this.s.rings;
+    const maxR = Math.hypot(Math.max(this.cx, WORLD_W - this.cx), Math.max(this.cy, WORLD_H - this.cy)) + 40;
+    const style = p.ev.style;
+    if (style === 'pass' || style === 'open') {
+      // toutes les ouvertures s'alignent sur la balle : un tunnel s'ouvre
+      for (const R of this.alive) R.angle = this.exitAngle + ((this.rng() - 0.5) * Math.min(rs.jitter, 8) * Math.PI) / 180;
+    } else if (style === 'explode') {
+      const vis = this.alive.filter((R) => R.r < maxR);
+      const pm = Math.min(1, 40 / Math.max(1, vis.length)) * I.particles * d.particles;
+      for (const R of this.alive.slice()) this.breakRing(R, hero ?? null, true, R.r < maxR ? pm : 0);
+    } else if (style === 'chain') {
+      const vis = this.alive.filter((R) => R.r < maxR);
+      const span = 0.7;
+      vis.forEach((R, k) => this.chain.push({ t: this.t + (k / Math.max(1, vis.length)) * span, ring: R }));
+      if (vis[0]) this.breakRing(vis[0], hero ?? null, true, 1);
+      this.chain = this.chain.filter((c) => c.ring.alive);
+      for (const R of this.alive) if (R.r >= maxR) this.chain.push({ t: this.t + span, ring: R });
+      this.chain.sort((a, b) => a.t - b.t);
+    } else {
+      for (const R of this.alive) {
+        if (R.r < maxR) this.ghosts.push({ r: R.r, angle: R.angle, idx: R.idx, t0: this.t, fade: true });
+        R.alive = false;
+        this.destroyed++;
+      }
+      this.dirty = true;
+    }
+    // la balle accélère vers l'extérieur
+    if (hero) {
+      const dx = hero.x - this.cx;
+      const dy = hero.y - this.cy;
+      const dd = Math.hypot(dx, dy) || 1;
+      const nx = dx / dd;
+      const ny = dy / dd;
+      const vt = -hero.vx * ny + hero.vy * nx;
+      const sp = d.exitSpeed * (0.85 + 0.15 * I.size);
+      hero.vx = nx * sp - ny * vt * 0.3;
+      hero.vy = ny * sp + nx * vt * 0.3;
+      // explosion de particules
+      const count = Math.min(500, Math.round(70 * d.particles * I.particles));
+      const pal = [...(d.afterPalette.length ? d.afterPalette : rs.palette).map(hexToRgb), [255, 255, 255] as RGB];
+      for (let i = 0; i < count; i++) {
+        const a = this.fx() * TAU;
+        const v = (250 + this.fx() * 1300) * d.explosionSize * I.size;
+        this.addParticle(hero.x, hero.y, Math.cos(a) * v, Math.sin(a) * v, 0.5 + this.fx() * 1.1, 2 + this.fx() * 4 * I.size, pal[i % pal.length], 0.955, 120);
+      }
+      for (let i = 0; i < p.ev.extraBalls; i++) {
+        const a = this.exitAngle + ((i + 1) / (p.ev.extraBalls + 1) - 0.5) * Math.PI * 1.6;
+        this.balls.push({
+          x: hero.x,
+          y: hero.y,
+          vx: Math.cos(a) * sp * 0.8,
+          vy: Math.sin(a) * sp * 0.8,
+          r: this.s.balls.radius,
+          prevD: Math.hypot(hero.x - this.cx, hero.y - this.cy),
+          bounces: 0,
+          trail: [],
+          hueSeed: (this.balls.length * 67) % 360,
+        });
+      }
+    }
+    if (d.shockwave && I.shock > 0) {
+      this.shockwaves.push({ t0: this.t, strength: I.size * d.explosionSize });
+      if (I.shock > 1) this.shockwaves.push({ t0: this.t + 0.12, strength: I.size * d.explosionSize * 0.7 });
+    }
+    this.flash = Math.max(this.flash, d.flash * I.flash);
+    this.shake = Math.min(1, this.shake + I.shake);
+    this.pulse = 1;
+    this.events.push({ type: 'drop', t: this.t, strength: I.size, n: this.nextDrop });
+  }
+
+  /** La balle revient dans un cercle : de nouveaux anneaux arrivent de l'extérieur et l'enferment. */
+  private rejoin() {
+    const rs = this.s.rings;
+    this.rejoinAt = Infinity;
+    this.phase = 'calm';
+    this.dropGap = 0;
+    this.noBreak = false;
+    this.chain = [];
+    for (const R of this.alive) R.alive = false;
+    this.rings = [];
+    for (let i = 0; i < rs.count; i++) {
+      const ring = this.makeRing(this.nextIdx++, i);
+      ring.r = ring.prevR = ring.r + 1500;
+      this.rings.push(ring);
+    }
+    this.alive = this.rings.slice();
+    this.events.push({ type: 'rejoin', t: this.t, strength: 1, n: 0 });
+  }
+
   private updateMusic(dt: number) {
     const a = this.analysis;
-    const mode = this.s.audio.mode;
+    const mode = musicMode(this.s);
     if (!a || mode === 'none') {
       this.musicActive = false;
       this.bass = this.pulse;
@@ -309,6 +587,7 @@ export class Simulation {
     if (e.musicReactive && e.flash) this.flash = Math.max(this.flash, 0.35 * e.reactivity);
     if (e.beatImpulse) {
       for (const b of this.balls) {
+        if (this.plan && b === this.balls[0]) continue;
         const sp = Math.hypot(b.vx, b.vy) || 1;
         const boost = 260 * e.reactivity;
         b.vx += (b.vx / sp) * boost;
@@ -318,7 +597,7 @@ export class Simulation {
   }
 
   private openGate(until: number) {
-    if (this.s.audio.mode !== 'bounce' || !this.analysis) return;
+    if (musicMode(this.s) !== 'bounce' || !this.analysis) return;
     if (this.t >= this.gateUntil) {
       this.segments.push({ start: this.t, end: until, offset: this.cursor });
     } else {
@@ -328,11 +607,12 @@ export class Simulation {
   }
 
   private inGap(R: Ring, ang: number, d: number, br: number) {
-    const gap = this.s.rings.gap;
+    if (this.tl && this.phase === 'calm') return false; // balle enfermée jusqu'au drop
+    const [gAng, gap] = this.ringGap(R);
     if (gap <= 0) return false;
     const half = (gap * Math.PI) / 360;
     const margin = Math.asin(Math.min(1, br / Math.max(d, br, 1))) * 0.35;
-    return Math.abs(angDiff(ang, R.angle)) < half - margin;
+    return Math.abs(angDiff(ang, gAng)) < half - margin;
   }
 
   /** Premier index d'anneau vivant dont le rayon est >= d. */
@@ -419,7 +699,7 @@ export class Simulation {
     b.y = this.cy + ny * lim;
     // paroi mobile : la balle suit au plus la vitesse de la paroi (plafonnée),
     // sans lui voler d'énergie (sinon elle accélère à chaque resserrement)
-    const wallV = Math.max((R.r - R.prevR) / SIM_DT, -this.s.rings.collapseSpeed);
+    const wallV = Math.max((R.r - R.prevR) / this.dtp, -this.s.rings.collapseSpeed);
     const vn = b.vx * nx + b.vy * ny;
     if (vn > wallV) {
       const nvn = Math.min(-this.s.balls.bounce * vn, wallV);
@@ -439,7 +719,7 @@ export class Simulation {
     const ny = dy / d;
     b.x = this.cx + nx * limit;
     b.y = this.cy + ny * limit;
-    const wallV = Math.min((R.r - R.prevR) / SIM_DT, this.s.rings.collapseSpeed);
+    const wallV = Math.min((R.r - R.prevR) / this.dtp, this.s.rings.collapseSpeed);
     const vn = b.vx * nx + b.vy * ny;
     if (vn < wallV) {
       const nvn = Math.max(-this.s.balls.bounce * vn, wallV);
@@ -460,6 +740,7 @@ export class Simulation {
       b.vy = -ny * bs.minSpeed * side;
     }
     if (strength < 90) return; // contact au repos : pas d'événement
+    if (b === this.balls[0]) this.heroBounced = true;
     b.bounces++;
     this.bounces++;
     if (bs.growOnBounce > 0 && R) {
@@ -470,7 +751,7 @@ export class Simulation {
     this.pulse = Math.min(1, this.pulse + Math.min(1, strength / 1600) * 0.8);
     if (e.shake) this.shake = Math.min(1, this.shake + strength / 6000);
     if (e.particles && e.sparks) {
-      const n = Math.round(6 * e.particleAmount);
+      const n = Math.round(6 * e.particleAmount * this.fxMul);
       const cx = b.x - nx * b.r * side;
       const cy = b.y - ny * b.r * side;
       const rgb = R ? this.ringRgb(R) : ([255, 255, 255] as RGB);
@@ -498,6 +779,7 @@ export class Simulation {
       for (let j = i + 1; j < bs.length; j++) {
         const a = bs[i];
         const c = bs[j];
+        if (this.plan && i === 0) continue; // trajectoire de sortie réservée
         const dx = c.x - a.x;
         const dy = c.y - a.y;
         const dist = Math.hypot(dx, dy);
@@ -565,15 +847,16 @@ export class Simulation {
     return ringColor(this.s, R.idx, this.alive.indexOf(R), 0);
   }
 
-  private breakRing(R: Ring, b: Ball) {
+  private breakRing(R: Ring, b: Ball | null, force = false, pmul = 1) {
     if (!R.alive) return;
+    if (!force && this.tl && (this.phase === 'calm' || this.noBreak)) return;
     R.alive = false;
     this.dirty = true;
     this.destroyed++;
     const s = this.s;
-    const keep = 1 - Math.min(0.2, Math.max(0, s.rings.breakDrag));
-    const bs = Math.hypot(b.vx, b.vy) * keep;
-    if (bs > s.balls.minSpeed * 0.6) {
+    pmul *= this.fxMul;
+    const keep = force ? 1 : 1 - Math.min(0.2, Math.max(0, s.rings.breakDrag));
+    if (b && Math.hypot(b.vx, b.vy) * keep > s.balls.minSpeed * 0.6) {
       b.vx *= keep;
       b.vy *= keep;
     }
@@ -583,8 +866,8 @@ export class Simulation {
     if (e.shake) this.shake = Math.min(1, this.shake + 0.12);
     this.pulse = Math.min(1, this.pulse + 0.25);
     const rgb = ringColor(s, R.idx, 0, 0);
-    if (e.particles) {
-      const n = Math.min(70, Math.round((8 + R.r * 0.05) * e.particleAmount));
+    if (e.particles && pmul > 0) {
+      const n = Math.min(70, Math.round((8 + R.r * 0.05) * e.particleAmount * pmul));
       const half = (s.rings.gap * Math.PI) / 360;
       for (let i = 0; i < n; i++) {
         const a = R.angle + half + this.fx() * (TAU - 2 * half);
@@ -605,8 +888,8 @@ export class Simulation {
           inward ? 0 : 60,
         );
       }
-      if (e.explosions) {
-        const m = Math.round(10 * e.particleAmount);
+      if (e.explosions && b && !force) {
+        const m = Math.round(10 * e.particleAmount * pmul);
         for (let i = 0; i < m; i++) {
           const a = this.fx() * TAU;
           const v = 200 + this.fx() * 600;
@@ -616,7 +899,7 @@ export class Simulation {
     }
     this.events.push({ type: 'break', t: this.t, strength: 1, n: this.destroyed });
     this.openGate(this.t + s.audio.gateMs / 1000);
-    if (s.rings.infinite) {
+    if (s.rings.infinite && !(force && this.tl)) {
       const slot = this.alive.filter((r) => r.alive).length;
       const ring = this.makeRing(this.nextIdx++, slot);
       ring.r += s.rings.spacing * 2;

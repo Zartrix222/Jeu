@@ -3,6 +3,7 @@
 
 import { BANDS, frameAt } from './analysis';
 import { ringColor, type Simulation } from './sim';
+import { INTENSITY } from './drop';
 import { WORLD_H, WORLD_W } from './types';
 import { TAU, hexToRgb, hueShift, mixRgb, rgbStr, type RGB } from './util';
 
@@ -23,7 +24,26 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
   const oy = (ch - WORLD_H * scale) / 2;
   const react = e.musicReactive ? e.reactivity : 0;
   const bass = sim.bass;
-  const hueOff = e.rainbow ? t * e.rainbowSpeed : 0;
+  // mode drop : ambiance calme → puissante, couleurs dynamiques après un drop « extrême »
+  const drop = sim.tl ? s.drop : null;
+  const amb = drop ? sim.ambience : 1;
+  const fx = sim.fxMul;
+  const ld = sim.lastDrop;
+  const sinceDrop = ld ? t - ld.t : Infinity;
+  const dynHue = drop && ld && ld.intensity === 'extreme' && sim.phase === 'free' ? sinceDrop * 140 : 0;
+  const hueOff = (e.rainbow ? t * e.rainbowSpeed : 0) + dynHue;
+  const calmK = drop ? drop.calmColors * (1 - amb) : 0; // désaturation avant le drop
+  const boostK = drop && ld ? Math.max(0, 1 - sinceDrop / 1.5) * INTENSITY[ld.intensity].boost : 0;
+  const afterPal = drop && drop.afterPalette.length ? drop.afterPalette : null;
+  const grade = (c: RGB): RGB => {
+    if (calmK > 0) {
+      const l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+      c = mixRgb(c, [l, l, l], calmK * 0.85);
+      c = mixRgb(c, [0, 0, 0], calmK * 0.35);
+    }
+    if (boostK > 0) c = mixRgb(c, [255, 255, 255], Math.min(0.6, boostK * 0.35));
+    return c;
+  };
   const cx = sim.cx;
   const cy = sim.cy;
 
@@ -36,9 +56,10 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
 
   let sx = 0;
   let sy = 0;
-  if (sim.shake > 0.01) {
-    sx = Math.sin(t * 91.3) * sim.shake * 14;
-    sy = Math.cos(t * 77.7) * sim.shake * 14;
+  const shakeAmt = sim.shake + (sim.tension > 0.6 ? (sim.tension - 0.6) * 0.15 : 0);
+  if (shakeAmt > 0.01) {
+    sx = Math.sin(t * 91.3) * shakeAmt * 14;
+    sy = Math.cos(t * 77.7) * shakeAmt * 14;
   }
   ctx.setTransform(scale, 0, 0, scale, ox + sx * scale, oy + sy * scale);
 
@@ -70,7 +91,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
   // poussière scintillante dans le disque
   if (e.innerDust && live.length && rs.innerDisc) {
     const dr = live[0].r - th / 2;
-    const amount = Math.min(220, 40 + sim.destroyed * 0.6);
+    const amount = Math.min(220, (40 + sim.destroyed * 0.6) * Math.min(1.5, fx));
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < amount; i++) {
       const h1 = hash(i);
@@ -93,7 +114,9 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
     const R = live[j];
     if (R.r - th > maxR) break;
     let rgb = ringColor(s, R.idx, j, hueOff);
-    if (e.rainbow && rs.colorMode !== 'rainbow') rgb = hueShift(rgb, hueOff);
+    if (afterPal && amb > 0) rgb = mixRgb(rgb, ringColor({ ...s, rings: { ...rs, palette: afterPal } }, R.idx, j, hueOff), amb);
+    if ((e.rainbow || dynHue) && rs.colorMode !== 'rainbow') rgb = hueShift(rgb, hueOff);
+    rgb = grade(rgb);
     let lum = 0;
     let rr = R.r;
     if (react > 0) {
@@ -109,8 +132,10 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
     }
     if (R.hitFlash > 0) lum = Math.max(lum, R.hitFlash * 0.8);
     if (lum > 0) rgb = mixRgb(rgb, [255, 255, 255], Math.min(0.85, lum));
-    const a0 = half > 0 ? R.angle + half : 0;
-    const a1 = half > 0 ? R.angle - half + TAU : TAU;
+    const [gAng, gDeg] = sim.ringGap(R);
+    const gh = (gDeg * Math.PI) / 360;
+    const a0 = gh > 0 ? gAng + gh : 0;
+    const a1 = gh > 0 ? gAng - gh + TAU : TAU;
     ringStyles.push({ r: Math.max(1, rr), a0, a1, rgb, lum });
   }
 
@@ -119,7 +144,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
     for (const st of ringStyles.slice(0, 120)) {
-      ctx.strokeStyle = rgbStr(st.rgb, 0.12 * e.neon);
+      ctx.strokeStyle = rgbStr(st.rgb, Math.min(0.4, 0.12 * e.neon * fx));
       ctx.lineWidth = th * 5;
       ctx.beginPath();
       ctx.arc(cx, cy, st.r, st.a0, st.a1);
@@ -143,8 +168,8 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
     const white = mixRgb(st.rgb, [255, 255, 255], 0.75);
     ctx.globalCompositeOperation = 'lighter';
     if (e.neon > 0) {
-      ctx.strokeStyle = rgbStr(st.rgb, 0.18 * e.neon);
-      ctx.lineWidth = th * 8 + 10;
+      ctx.strokeStyle = rgbStr(st.rgb, Math.min(0.6, 0.18 * e.neon * Math.max(fx, 0.4) + sim.tension * 0.35));
+      ctx.lineWidth = th * 8 + 10 + sim.tension * 22;
       ctx.beginPath();
       ctx.arc(cx, cy, st.r, st.a0, st.a1);
       ctx.stroke();
@@ -162,13 +187,65 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
   if (sim.ghosts.length) {
     ctx.globalCompositeOperation = 'lighter';
     for (const gh of sim.ghosts) {
-      const p = (t - gh.t0) / 0.5;
+      const p = (t - gh.t0) / (gh.fade ? 0.65 : 0.5);
       if (p < 0 || p > 1) continue;
       const rgb = mixRgb(ringColor(s, gh.idx, 0, hueOff), [255, 255, 255], 0.5 * (1 - p));
-      ctx.strokeStyle = rgbStr(rgb, (1 - p) * 0.8);
-      ctx.lineWidth = th * (1 + p * 3);
+      ctx.strokeStyle = rgbStr(rgb, (1 - p) * (gh.fade ? 0.9 : 0.8));
+      ctx.lineWidth = gh.fade ? th : th * (1 + p * 3);
+      const gHalf = gh.fade ? 0 : half;
       ctx.beginPath();
-      ctx.arc(cx, cy, gh.r + p * 40, half > 0 ? gh.angle + half : 0, half > 0 ? gh.angle - half + TAU : TAU);
+      ctx.arc(cx, cy, gh.r + (gh.fade ? 0 : p * 40), gHalf > 0 ? gh.angle + gHalf : 0, gHalf > 0 ? gh.angle - gHalf + TAU : TAU);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // fissure du cercle juste avant la sortie
+  if (drop && sim.phase === 'calm' && t >= sim.crackFrom && t < sim.crackT && ringStyles.length) {
+    const u = (t - sim.crackFrom) / (sim.crackT - sim.crackFrom);
+    const R0 = ringStyles[0].r;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,255,255,${(0.4 + 0.6 * u).toFixed(3)})`;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 7; k++) {
+      let a = sim.exitAngle + (hash(k + 7) - 0.5) * 0.25;
+      let rr = R0 - 6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      const len = (30 + hash(k) * 90) * u;
+      for (let q = 1; q <= 4; q++) {
+        rr += ((k % 2 ? 1 : -1) * len) / 4;
+        a += (hash(k * 13 + q) - 0.5) * 0.12;
+        ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      }
+      ctx.stroke();
+    }
+    const g2 = ctx.createRadialGradient(cx + Math.cos(sim.exitAngle) * R0, cy + Math.sin(sim.exitAngle) * R0, 0, cx + Math.cos(sim.exitAngle) * R0, cy + Math.sin(sim.exitAngle) * R0, 90);
+    g2.addColorStop(0, `rgba(255,255,255,${(0.5 * u).toFixed(3)})`);
+    g2.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(cx + Math.cos(sim.exitAngle) * R0 - 90, cy + Math.sin(sim.exitAngle) * R0 - 90, 180, 180);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ondes de choc
+  if (sim.shockwaves.length) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const sw of sim.shockwaves) {
+      const p = (t - sw.t0) / 1.1;
+      if (p < 0 || p > 1) continue;
+      const ease = 1 - (1 - p) * (1 - p);
+      const rr = (ringStyles[0]?.r ?? rs.innerRadius) + ease * 1500 * sw.strength;
+      ctx.strokeStyle = `rgba(255,255,255,${((1 - p) * 0.85).toFixed(3)})`;
+      ctx.lineWidth = (1 - p) * 34 * sw.strength + 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, TAU);
+      ctx.stroke();
+      ctx.strokeStyle = rgbStr(grade(ringColor(s, 0, 0, hueOff)), (1 - p) * 0.5);
+      ctx.lineWidth = (1 - p) * 90 * sw.strength + 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr * 0.94, 0, TAU);
       ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -182,7 +259,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
     ctx.globalCompositeOperation = 'lighter';
     for (const p of sim.particles) {
       const k = p.life / p.max;
-      ctx.globalAlpha = Math.min(1, k * 1.4);
+      ctx.globalAlpha = Math.min(1, k * 1.4 * Math.min(1.2, fx));
       p.css ??= rgbStr(mixRgb(p.rgb, [255, 255, 255], 0.25));
       ctx.fillStyle = p.css;
       const sz = p.size * (0.5 + 0.5 * k);
@@ -196,9 +273,10 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
   const bs = s.balls;
   sim.balls.forEach((b, i) => {
     let rgb = sim.ballRgb(b, i);
-    if (e.rainbow && bs.colorMode === 'solid') rgb = hueShift(rgb, hueOff);
+    if ((e.rainbow || dynHue) && bs.colorMode === 'solid') rgb = hueShift(rgb, hueOff);
+    if (calmK > 0) rgb = mixRgb(rgb, [200, 200, 200], calmK * 0.3);
     ctx.globalCompositeOperation = 'lighter';
-    if (bs.trail && b.trail.length >= 4) {
+    if ((bs.trail || (drop && sim.phase === 'free')) && b.trail.length >= 4) {
       const n = b.trail.length / 2;
       if (bs.trailStyle === 'line') {
         ctx.lineCap = 'round';
@@ -231,9 +309,9 @@ export function renderFrame(ctx: CanvasRenderingContext2D, sim: Simulation, cw: 
       }
     }
     if (bs.glow > 0) {
-      const gr = b.r * (2 + bs.glow * 2.6 + bass * react);
-      const gg = ctx.createRadialGradient(b.x, b.y, b.r * 0.4, b.x, b.y, gr);
-      gg.addColorStop(0, rgbStr(rgb, 0.6 * bs.glow));
+      const gr = b.r * (2 + bs.glow * 2.6 + bass * react + (drop ? (fx - 1) * 1.2 + sim.tension * 1.5 : 0));
+      const gg = ctx.createRadialGradient(b.x, b.y, b.r * 0.4, b.x, b.y, Math.max(b.r, gr));
+      gg.addColorStop(0, rgbStr(rgb, Math.min(0.9, 0.6 * bs.glow * (drop ? Math.max(0.5, fx) : 1))));
       gg.addColorStop(1, rgbStr(rgb, 0));
       ctx.fillStyle = gg;
       ctx.beginPath();

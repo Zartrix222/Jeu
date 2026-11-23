@@ -4,7 +4,9 @@ import type { MusicAnalysis } from './analysis';
 import { LiveAudio } from './audio';
 import { renderFrame } from './render';
 import { Simulation } from './sim';
-import type { Settings } from './types';
+import type { DropEvent, Settings } from './types';
+import { musicMode, musicOffset } from './drop';
+import { uid } from './util';
 
 const STRUCTURAL: ((s: Settings) => unknown)[] = [
   (s) => s.seed,
@@ -20,6 +22,7 @@ const STRUCTURAL: ((s: Settings) => unknown)[] = [
   (s) => s.audio.mode,
   (s) => s.audio.musicId,
   (s) => s.audio.startOffset,
+  (s) => JSON.stringify(s.drop),
 ];
 
 export interface PlayerStats {
@@ -29,6 +32,9 @@ export interface PlayerStats {
   bounces: number;
   finished: boolean;
   playing: boolean;
+  musicT: number; // position dans la musique (s)
+  phase: 'calm' | 'free';
+  ambience: number;
 }
 
 export class Player {
@@ -48,6 +54,8 @@ export class Player {
   private lastStats = 0;
   private ro: ResizeObserver;
   private muted = false;
+  private stopAt = Infinity;
+  private skipRestart = false;
 
   constructor(canvas: HTMLCanvasElement, settings: Settings) {
     this.canvas = canvas;
@@ -81,7 +89,11 @@ export class Player {
   setSettings(s: Settings) {
     const prev = this.settings;
     this.settings = s;
-    if (STRUCTURAL.some((f) => f(prev) !== f(s))) this.restart();
+    if (this.skipRestart) {
+      this.skipRestart = false;
+      this.sim.rebuildDrops(s);
+      this.scheduleChain();
+    } else if (STRUCTURAL.some((f) => f(prev) !== f(s))) this.restart();
     else this.sim.setSettings(s);
     this.applyVolumes();
   }
@@ -100,7 +112,69 @@ export class Player {
   restart() {
     this.sim = new Simulation(this.settings, this.analysis);
     this.audio?.resetSegments();
+    this.stopAt = Infinity;
     if (this.playing) this.startClock();
+  }
+
+  private get continuous() {
+    return musicMode(this.settings) === 'continuous' && !!this.buffer && this.settings.audio.mode !== 'none';
+  }
+
+  /** Décalage musique ↔ simulation. */
+  get offset() {
+    return musicOffset(this.settings, !!this.analysis && this.settings.audio.mode !== 'none');
+  }
+
+  /**
+   * Se place à l'instant `simT` (calcul déterministe depuis le début, sans rendu ni son),
+   * puis lit jusqu'à `until` si demandé.
+   */
+  seek(simT: number, play = false, until = Infinity) {
+    const wasPlaying = this.playing;
+    this.playing = false;
+    this.audio?.resetSegments();
+    this.sim = new Simulation(this.settings, this.analysis);
+    const target = Math.max(0, simT);
+    while (this.sim.t + 1e-9 < target - 1 / 120) {
+      this.sim.advanceTo(Math.min(target, this.sim.t + 1));
+      this.sim.events.length = 0;
+      if (this.sim.particles.length > 1500) this.sim.particles.splice(0, this.sim.particles.length - 1500);
+    }
+    this.sim.events.length = 0;
+    this.stopAt = until;
+    if (play || wasPlaying) this.play();
+    else this.emitStats(true);
+  }
+
+  /** Lit les `before` secondes avant et `after` secondes après l'instant `simT`. */
+  previewAround(simT: number, before = 5, after = 5) {
+    this.seek(simT - before, true, simT + after);
+  }
+
+  /** Écoute brute d'un extrait de la musique (sans animation). */
+  listen(musicT: number, before = 3, after = 3) {
+    this.pause();
+    const a = this.ensureAudio();
+    a.listen(Math.max(0, musicT - before), before + after);
+  }
+
+  /** Mode interactif : la balle sort maintenant ; renvoie l'événement à enregistrer. */
+  triggerNow(ev: Omit<DropEvent, 'id' | 'time'>): DropEvent | null {
+    if (!this.playing || this.sim.phase !== 'calm' || !this.sim.tl) return null;
+    const T = this.sim.t + 0.3;
+    const event: DropEvent = { ...ev, id: uid(), time: Math.round((T + this.offset) * 1000) / 1000 };
+    this.skipRestart = true;
+    return event;
+  }
+
+  private scheduleChain() {
+    const a = this.audio;
+    if (!a) return;
+    if (!this.playing) {
+      a.chain.schedule(null, this.settings.drop, 0, a.ctx.currentTime);
+      return;
+    }
+    a.chain.schedule(this.sim.tl, this.settings.drop, this.sim.t, this.baseCtx + (this.sim.t - this.baseSim));
   }
 
   private ensureAudio() {
@@ -120,9 +194,8 @@ export class Player {
     if (a) {
       this.baseCtx = a.ctx.currentTime + 0.02;
       a.resetSegments();
-      if (this.settings.audio.mode === 'continuous' && this.buffer) {
-        a.startContinuous(this.settings.audio.startOffset + this.sim.t);
-      }
+      if (this.continuous) a.startContinuous(this.settings.audio.startOffset + this.sim.t);
+      a.chain.schedule(this.sim.tl, this.settings.drop, this.sim.t, this.baseCtx);
     }
   }
 
@@ -135,6 +208,7 @@ export class Player {
 
   pause() {
     this.playing = false;
+    this.stopAt = Infinity;
     this.audio?.resetSegments();
     this.emitStats(true);
   }
@@ -146,7 +220,7 @@ export class Player {
 
   private clock() {
     const a = this.audio;
-    if (a && a.ctx.state === 'running' && this.settings.audio.mode === 'continuous' && this.buffer) {
+    if (a && a.ctx.state === 'running' && this.continuous) {
       return this.baseSim + Math.max(0, a.ctx.currentTime - this.baseCtx);
     }
     return this.baseSim + (performance.now() / 1000 - this.baseWall);
@@ -157,19 +231,24 @@ export class Player {
     const sim = this.sim;
     if (this.playing) {
       let target = this.clock();
-      if (target - sim.t > 0.25) {
-        // l'appareil a pris du retard : on recale l'horloge
+      if (this.continuous) {
+        // la musique fait foi : l'image rattrape son retard sans jamais décaler les drops
+        target = Math.min(target, sim.t + 0.5);
+      } else if (target - sim.t > 0.25) {
+        // sans musique : on recale l'horloge
         const lag = target - sim.t - 0.25;
         this.baseSim -= lag;
         target -= lag;
+        this.scheduleChain();
       }
-      sim.advanceTo(target);
+      sim.advanceTo(Math.min(target, this.stopAt));
       const a = this.audio;
       if (a) {
         for (const ev of sim.events) a.playEvent(ev, this.settings.audio);
-        if (this.settings.audio.mode === 'bounce') a.syncSegments(sim.segments, sim.t);
+        if (musicMode(this.settings) === 'bounce') a.syncSegments(sim.segments, sim.t);
       }
       sim.events.length = 0;
+      if (sim.t >= this.stopAt - 1 / 120) this.pause();
     }
     renderFrame(this.ctx, sim, this.canvas.width, this.canvas.height);
     this.emitStats(false);
@@ -186,6 +265,9 @@ export class Player {
       bounces: this.sim.bounces,
       finished: this.sim.finished,
       playing: this.playing,
+      musicT: this.sim.t + this.offset,
+      phase: this.sim.phase,
+      ambience: this.sim.ambience,
     });
   }
 

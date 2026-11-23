@@ -6,6 +6,9 @@ import { makeThumb } from '../lib/thumb';
 import { setPath } from './controls';
 import { ExportSheet } from './ExportSheet';
 import { MusicPanel } from './MusicPanel';
+import { DropPanel } from './DropPanel';
+import { notify } from '../lib/host';
+import { formatTime } from '../engine/drop';
 import { BallsPanel, EffectsPanel, RingsPanel, TextPanel } from './panels';
 
 const TABS = [
@@ -14,6 +17,7 @@ const TABS = [
   ['effects', 'Effets', '✦'],
   ['text', 'Texte', 'Aa'],
   ['music', 'Musique', '♪'],
+  ['drop', 'Drop', '⚡'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -148,11 +152,28 @@ export function Editor({ project, onSave, onBack }: Props) {
           >
             {muted ? '🔇' : '🔊'}
           </button>
+          {settings.drop.enabled && playing && stats?.phase === 'calm' && (
+            <button
+              type="button"
+              className="btn small live-btn"
+              onClick={() => {
+                const ev = playerRef.current?.triggerNow({ style: 'pass', intensity: 'power', freeFor: 0, extraBalls: 0 });
+                if (!ev) return;
+                set('drop', { ...settings.drop, events: [...settings.drop.events, ev].sort((a, b) => a.time - b.time) });
+                notify(`Drop enregistré à ${formatTime(ev.time)}`);
+              }}
+            >
+              ⚡ Drop
+            </button>
+          )}
           <div className="stats">
             <span>{(stats?.t ?? 0).toFixed(1)} s</span>
             <span>◎ {stats?.remaining ?? 0}</span>
             <span>💥 {stats?.destroyed ?? 0}</span>
             <span>↯ {stats?.bounces ?? 0}</span>
+            {settings.drop.enabled && stats && (
+              <span className={stats.phase === 'free' ? 'phase free' : 'phase'}>{stats.phase === 'free' ? '⚡ drop' : '◌ calme'}</span>
+            )}
             {musicLoading && <span className="warn">♪ {musicLoading}</span>}
           </div>
         </div>
@@ -172,6 +193,16 @@ export function Editor({ project, onSave, onBack }: Props) {
         {tab === 'rings' && <RingsPanel s={settings} set={set} />}
         {tab === 'effects' && <EffectsPanel s={settings} set={set} />}
         {tab === 'text' && <TextPanel s={settings} set={set} />}
+        {tab === 'drop' && (
+          <DropPanel
+            s={settings}
+            set={set}
+            music={settings.audio.mode !== 'none' ? music : null}
+            stats={stats}
+            player={playerRef.current}
+            onGenerate={() => (playerRef.current?.pause(), setShowExport(true))}
+          />
+        )}
         {tab === 'music' && <MusicPanel s={settings} set={set} duration={music?.buffer.duration ?? null} loading={musicLoading} />}
       </div>
 
