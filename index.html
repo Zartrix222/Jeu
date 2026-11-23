@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;800&family=Poppins:wght@700&display=swap">
 <style>
   /* Layout: aperçu vertical 9:16 à gauche (en haut sur téléphone), table de réglages à droite. Thème sombre assumé : c'est un studio vidéo. */
   :root {
@@ -215,6 +215,12 @@
           <input id="flash" type="range" min="0" max="1.5" step="0.05" value="0.6">
         </div>
       </div>
+      <div class="grid">
+        <div class="field">
+          <div class="top"><label for="rate">Vitesse des éclats</label><output id="rateOut"></output></div>
+          <input id="rate" type="range" min="15" max="120" step="5" value="50">
+        </div>
+      </div>
       <p class="hint">Le zoom rapproche la caméra tant que la balle est dehors. La secousse et le flash suivent les anneaux qui éclatent.</p>
     </section>
 
@@ -245,8 +251,12 @@
           <input id="speed" type="range" min="0.5" max="2" step="0.05" value="1">
         </div>
         <div class="field">
+          <div class="top"><label for="disk">Taille du cercle central</label><output id="diskOut"></output></div>
+          <input id="disk" type="range" min="0.6" max="2.4" step="0.05" value="1.95">
+        </div>
+        <div class="field">
           <div class="top"><label for="ballSize">Taille de la balle</label><output id="ballSizeOut"></output></div>
-          <input id="ballSize" type="range" min="0.6" max="1.8" step="0.05" value="1">
+          <input id="ballSize" type="range" min="0.6" max="2.2" step="0.05" value="1.75">
         </div>
         <div class="field">
           <div class="top"><label for="trail">Traînée</label><output id="trailOut"></output></div>
@@ -324,7 +334,7 @@
 
   // ---------- Palettes ----------
   const PALETTES = {
-    'Coucher de soleil': { rings: [[1,.68,.2],[1,.42,.85],[.72,.35,1],[1,.42,.85]], ball: [1,.8,.25], halo: [1,.7,.15] },
+    'Coucher de soleil': { rings: [[1,.62,.14],[1,.32,.8],[.7,.3,1],[1,.32,.8]], ball: [1,.78,.2], halo: [1,.7,.15] },
     'Menthe':            { rings: [[.40,.85,.45],[.55,.97,.6],[.32,.75,.4]], ball: [.94,.92,1], halo: [.7,.59,1] },
     'Glacier':           { rings: [[.45,.85,1],[.25,.5,1],[.85,.95,1],[.25,.5,1]], ball: [1,1,1], halo: [.6,.85,1] },
     'Braise':            { rings: [[1,.25,.15],[1,.55,.1],[1,.85,.3],[1,.55,.1]], ball: [1,.95,.8], halo: [1,.6,.2] },
@@ -341,7 +351,7 @@
     get echo() { return +$('echo').value; }, get bass() { return +$('bass').value; },
     get follow() { return $('follow').value === '1'; }, get shake() { return +$('shake').value; }, get zoom() { return +$('zoom').value; },
     get flash() { return +$('flash').value; }, get react() { return +$('react').value; }, get scroll() { return +$('scroll').value; },
-    get ballSize() { return +$('ballSize').value; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
+    get ballSize() { return +$('ballSize').value; }, get disk() { return +$('disk').value; }, get rate() { return +$('rate').value; }, get trail() { return +$('trail').value; }, get parts() { return +$('parts').value; },
     get density() { return +$('density').value; }, get thick() { return +$('thick').value; },
     get counter() { return $('counter').value === '1'; }, get topText() { return $('topText').value.trim(); },
     get shape() { return $('shape').value; }, get speed() { return +$('speed').value; }, get gap() { return +$('gap').value; },
@@ -353,7 +363,7 @@
     inVol: v => Math.round(v * 100) + ' %', muffle: v => Math.round(v * 100) + ' %', verb: v => Math.round(v * 100) + ' %',
     echo: v => Math.round(v * 100) + ' %', bass: v => '+' + v + ' dB', shake: v => Math.round(v * 100) + ' %',
     zoom: v => Math.round(v * 100) + ' %', flash: v => Math.round(v * 100) + ' %', react: v => Math.round(v * 100) + ' %',
-    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), trail: v => v == 0 ? 'aucune' : v,
+    scroll: v => Math.round(v * 100) + ' %', ballSize: v => '× ' + (+v).toFixed(2), disk: v => '× ' + (+v).toFixed(2), rate: v => v + ' / s', trail: v => v == 0 ? 'aucune' : v,
     parts: v => '× ' + (+v).toFixed(1), density: v => '× ' + (+v).toFixed(2), thick: v => '× ' + (+v).toFixed(2),
     speed: v => '× ' + (+v).toFixed(2), gap: v => Math.round(v * 180 / Math.PI) + '°', rot: v => '× ' + (+v).toFixed(1), seed: v => '#' + v,
   };
@@ -464,13 +474,13 @@
   function makeSim(W, N, wins, cb) {
     const CONE = S.shape === 'cone';
     const k = CONE ? { r0: .125, sp: .0056, br: .022, v: .62 } : { r0: .16, sp: .0115, br: .011, v: .9 };
-    const R0 = W * k.r0, SP = W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
-    const FOLLOW = S.follow;
+    const R0 = W * k.r0 * (CONE ? S.disk : 1), SP = W * k.sp * S.density, BR = W * k.br * S.ballSize, SPEED = W * k.v * S.speed, rotMul = S.rot;
+    const FOLLOW = S.follow, RATE = CONE ? S.rate : 1e9;
     const SYNC = CONE && wins.length > 0;
     const { phase, gap, omega } = ringsFor(S.shape, S.seed, S.gap);
     const rnd = mulberry(S.seed * 7919 + 1);
     const a0 = rnd() * TAU;
-    const st = { t: 0, first: 0, offset: 0, rot: 0, gate: !SYNC, x: 0, y: 0, vx: Math.cos(a0) * SPEED, vy: Math.sin(a0) * SPEED, pops: 0 };
+    const st = { t: 0, first: 0, offset: 0, rot: 0, gate: !SYNC, lastPop: -1, x: 0, y: 0, vx: Math.cos(a0) * SPEED, vy: Math.sin(a0) * SPEED, pops: 0 };
     const inWin = t => wins.some(w => t >= w[0] && t < w[1]);
     const ringR = i => R0 + (i - st.offset) * SP;
     const ringA = i => phase[i] + (CONE ? st.rot : omega[i] * st.t * rotMul);
@@ -511,7 +521,7 @@
         }
       } else if (CONE) st.rot = rotMul * (0.42 * st.t + 0.9 * Math.sin(st.t * 0.13));
       const lag = st.first - st.offset;
-      if (CONE) st.offset += Math.min(lag, (45 + 20 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
+      if (CONE) st.offset += Math.min(lag, (55 + 70 * lag) * dt); else st.offset += lag * (1 - Math.exp(-dt * 14));
       if (CONE) {
         const d0 = Math.hypot(st.x, st.y);
         if (d0 > R0) { const g = W * ((!SYNC || win) ? 3 : 14) * dt / d0; st.vx -= st.x * g; st.vy -= st.y * g; }
@@ -521,7 +531,10 @@
         const i = st.first; if (i >= N) break;
         const r = ringR(i), d = Math.hypot(st.x, st.y) || 1e-9, a = Math.atan2(st.y, st.x);
         if (inGap(i, a, r)) {
-          if (d > r) { const rot = ringA(i); st.first++; st.pops++; cb && cb.pop(i, r, rot, gap[i]); continue; }
+          if (d > r) {
+            if (st.t - st.lastPop < 1 / RATE) break; // cadence des éclats limitée
+            const rot = ringA(i); st.first++; st.pops++; st.lastPop = st.t; cb && cb.pop(i, r, rot, gap[i]); continue;
+          }
         } else if (d > r - BR) {
           const nx = st.x / d, ny = st.y / d;
           st.x = nx * (r - BR); st.y = ny * (r - BR);
@@ -566,14 +579,18 @@
 
   function newVisual() { return { particles: [], dust: [], trail: [], flash: 0, pulse: 0, shake: 0, zoom: 0 }; }
   function onPop(i, r, rot, g) {
-    const W = sim.W, n = Math.round((sim.CONE ? 10 : 30) * S.parts), col = ringColor(i);
+    const W = sim.W, n = Math.round((sim.CONE ? 4 : 30) * S.parts), col = ringColor(i);
     for (let k = 0; k < n; k++) {
       const a = rot + g / 2 + Math.random() * (TAU - g), sp = W * (0.1 + Math.random() * 0.35);
       vis.particles.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, vx: Math.cos(a) * sp + (Math.random() - .5) * W * .15, vy: Math.sin(a) * sp + (Math.random() - .5) * W * .15, life: 1, decay: 1 + Math.random() * 1.4, col });
     }
     if (vis.particles.length > 1200) vis.particles.splice(0, vis.particles.length - 1200);
-    if (sim.CONE) for (let k = 0; k < Math.round(4 * S.parts); k++) vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.75 + Math.random() * 0.22), life: 2.5 + Math.random() * 3, col, ph: Math.random() * TAU });
-    if (vis.dust.length > 900) vis.dust.splice(0, vis.dust.length - 900);
+    if (sim.CONE) for (let k = 0; k < Math.round(10 * S.parts); k++) {
+      // poussière d'étoiles : s'accumule surtout près du bord du cercle
+      const depth = Math.min(0.75, Math.abs(gauss(Math.random)) * 0.16);
+      vis.dust.push({ a: Math.random() * TAU, r: sim.R0 * (0.97 - depth), life: 10 + Math.random() * 25, col: lerp(col, [1, 1, 1], Math.random() * 0.4), ph: Math.random() * TAU, sp: (Math.random() - .5) * 0.25, sz: 0.6 + Math.random() * 1.2 });
+    }
+    if (vis.dust.length > 5000) vis.dust.splice(0, vis.dust.length - 5000);
     vis.pulse = 1; vis.flash = Math.min(1, vis.flash + 0.06); vis.shake = Math.min(1, vis.shake + 0.12);
     sfx.pop();
   }
@@ -583,7 +600,7 @@
     const k = Math.pow(0.985, dt * 60);
     for (const p of vis.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= k; p.vy *= k; p.life -= p.decay * dt; }
     vis.particles = vis.particles.filter(p => p.life > 0);
-    for (const d of vis.dust) { d.a += dt * 0.25; d.life -= dt; }
+    for (const d of vis.dust) { d.a += dt * (0.12 + d.sp); d.life -= dt; }
     vis.dust = vis.dust.filter(d => d.life > 0);
     vis.pulse = Math.max(0, vis.pulse - dt * 5); vis.flash = Math.max(0, vis.flash - dt * 1.6); vis.shake = Math.max(0, vis.shake - dt * 3);
     const out = sim.SYNC ? (sim.st.gate ? 1 : 0) : 0;
@@ -614,15 +631,18 @@
     for (const p of vis.particles) { ctx.fillStyle = rgb(p.col, Math.max(0, Math.min(1, p.life))); ctx.fillRect(p.x - LW, p.y - LW, LW * 2, LW * 2); }
     if (sim.CONE) {
       ctx.fillStyle = '#030205'; ctx.beginPath(); ctx.arc(0, 0, sim.R0 - LW, 0, TAU); ctx.fill();
+      const ds = W * 0.0022;
       for (const d of vis.dust) {
-        const al = Math.min(1, d.life / 1.5) * (0.5 + 0.5 * Math.sin(d.ph + st.t * 6));
-        ctx.fillStyle = rgb(d.col, al * 0.9);
-        ctx.beginPath(); ctx.arc(Math.cos(d.a) * d.r, Math.sin(d.a) * d.r, W * 0.0015, 0, TAU); ctx.fill();
+        const al = Math.min(1, d.life / 3) * (0.45 + 0.55 * Math.sin(d.ph + st.t * 5));
+        if (al <= 0.03) continue;
+        ctx.fillStyle = rgb(d.col, al);
+        const z = ds * d.sz; ctx.fillRect(Math.cos(d.a) * d.r - z / 2, Math.sin(d.a) * d.r - z / 2, z, z);
       }
       if (st.first < sim.N) {
         const rr = Math.max(sim.R0, sim.ringR(st.first)), rot = sim.ringA(st.first), g = sim.gap[st.first];
-        for (const [w, al] of [[LW * 7, .08], [LW * 4, .18], [LW * 2, .5]]) {
-          ctx.strokeStyle = `rgba(255,242,255,${al * (0.6 + fl)})`; ctx.lineWidth = w; ctx.beginPath();
+        const rimW = W * 0.0065;
+        for (const [w, al, c] of [[rimW * 5, .10, '255,150,240'], [rimW * 2.6, .25, '255,190,250'], [rimW, .95, '255,248,255']]) {
+          ctx.strokeStyle = `rgba(${c},${Math.min(1, al * (1 + fl * 0.6))})`; ctx.lineWidth = w; ctx.beginPath();
           if (st.gate) ctx.arc(0, 0, rr, rot + g / 2, rot - g / 2 + TAU); else ctx.arc(0, 0, rr, 0, TAU);
           ctx.stroke();
         }
@@ -635,8 +655,8 @@
     // compteur
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (S.counter) {
-      const fs = W * (sim.CONE ? 0.085 : 0.105) * (1 + vis.pulse * 0.08);
-      ctx.font = `800 ${fs}px Inter, system-ui, sans-serif`;
+      const fs = W * (sim.CONE ? 0.1 : 0.105) * (1 + vis.pulse * 0.06);
+      ctx.font = `700 ${fs}px Poppins, Inter, system-ui, sans-serif`;
       const txt = String(sim.N - st.first);
       ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(txt, 3, 4 + fs * 0.04);
       ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, fs * 0.04);
@@ -652,9 +672,19 @@
     let g = ctx.createRadialGradient(bx, by, BR * 0.6, bx, by, BR * 3.2);
     g.addColorStop(0, rgb(pal.halo, .55)); g.addColorStop(1, rgb(pal.halo, 0));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR * 3.2, 0, TAU); ctx.fill();
-    g = ctx.createRadialGradient(bx - BR * .3, by - BR * .3, 0, bx, by, BR);
-    g.addColorStop(0, 'rgb(255,255,230)'); g.addColorStop(1, rgb(pal.ball));
+    const bc = pal.ball, dark = bc.map(v => v * 0.55), light = lerp(bc, [1, 1, 1], 0.55);
+    g = ctx.createRadialGradient(bx - BR * .35, by - BR * .35, 0, bx, by, BR);
+    g.addColorStop(0, rgb(light)); g.addColorStop(0.7, rgb(bc)); g.addColorStop(1, rgb(dark));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, BR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = rgb(dark, 0.8); ctx.lineWidth = BR * 0.09;
+    ctx.beginPath(); ctx.arc(bx, by, BR * 0.74, 0, TAU); ctx.stroke();
+    ctx.fillStyle = rgb(light, 0.95); ctx.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const a = st.t * 2.5 + k * Math.PI / 5 - Math.PI / 2, rr = BR * (k % 2 ? 0.2 : 0.48);
+      k ? ctx.lineTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr) : ctx.moveTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(bx - BR * .38, by - BR * .4, BR * .16, 0, TAU); ctx.fill();
     // texte en haut (hors caméra : ne zoome pas, ne tremble pas)
     const tt = S.topText;
     if (tt) {
@@ -922,7 +952,7 @@
   });
 
   const live = ['volMus', 'volFx', 'inVol', 'muffle', 'verb', 'echo', 'bass', 'shake', 'zoom', 'flash', 'react', 'scroll', 'trail', 'parts', 'thick', 'popSnd', 'bounceSnd', 'counter', 'topText'];
-  const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'speed', 'ballSize', 'density', 'gap', 'rot', 'seed', 'res'];
+  const structural = ['dur', 'sens', 'maxlen', 'shape', 'follow', 'rate', 'speed', 'ballSize', 'disk', 'density', 'gap', 'rot', 'seed', 'res'];
   live.forEach(id => $(id).addEventListener(['popSnd', 'bounceSnd', 'counter'].includes(id) ? 'change' : 'input', () => { showOutputs(); applyMix(true); }));
   structural.forEach(id => {
     $(id).addEventListener('input', () => { showOutputs(); if (id === 'dur' && song) { passageStart = Math.min(passageStart, Math.max(0, song.length - S.dur)); drawTimeline(); } });
@@ -940,6 +970,6 @@
   }
 
   showOutputs(); rebuild(); requestAnimationFrame(frame);
-  if (document.fonts) document.fonts.ready.then(drawTimeline);
+  if (document.fonts) { document.fonts.load('700 40px Poppins').catch(() => {}); document.fonts.ready.then(drawTimeline); }
 })();
 </script>
