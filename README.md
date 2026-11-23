@@ -1,6 +1,6 @@
 # Usine Orbitale
 
-Jeu d'usine automatisée pour téléphone (HTML5, un seul fichier, aucune installation).
+Jeu d'usine automatisée en 3D pour téléphone (HTML5 + three.js, un seul fichier, aucune installation).
 
 Tu atterris sur une planète inconnue avec un QG-rampe de lancement. Pose des foreuses sur les
 gisements, relie-les par des convoyeurs à des fonderies, constructeurs et assembleuses, gère
@@ -12,19 +12,31 @@ Ouvre `index.html` dans le navigateur du téléphone (ou héberge le dépôt ave
 Sur iPhone/Android : « Ajouter à l'écran d'accueil » pour le plein écran.
 
 ## Commandes
-- **Déplacer** : un doigt (mode Inspecter) ou deux doigts (tous modes). **Zoom** : pincer.
+- **Caméra** : un doigt pour se déplacer (mode Inspecter) ; deux doigts pour zoomer, tourner et se déplacer.
 - **Construire** : choisir un bâtiment en bas, régler le sens avec *Tourner*, toucher la carte.
 - **Convoyeurs** : glisser le doigt pour tracer une ligne, elle s'oriente toute seule.
 - **Inspecter** un bâtiment pour changer sa recette, le tourner ou le démolir (remboursé).
 - Toucher un gisement en mode Inspecter = ramasser du minerai à la main (établi dans 🎒).
 
+## Contenu
+- Monde 3D avec ombres, cycle jour/nuit, lacs, montagnes et flore extraterrestre
+- 6 ressources (fer, cuivre, calcaire, charbon, quartz, pétrole), gisements pauvres / normaux / riches
+- 18 bâtiments : foreuses Mk1-3, extracteur de pétrole, fonderie, haut fourneau, constructeur,
+  assembleuse, raffinerie, usine lourde, convoyeurs Mk1-3, tuyaux, répartiteur, conteneur,
+  centrales à charbon et à carburant
+- 27 objets, surcadençage des machines, voyants d'état, carte, statistiques, sons synthétisés
+- 8 paliers jusqu'au lancement de la fusée
+
 ## Progression
-| Palier | À livrer | Débloque |
-|---|---|---|
-| 1 Fondations | 60 plaques, 40 tiges | Répartiteur, Conteneur, Vis |
-| 2 Électrification | 60 vis, 40 plaques | Générateur à charbon, Fil, Câble, Béton |
-| 3 Infrastructure | 60 fils, 40 câbles, 40 béton | Assembleuse, Plaque renforcée, Rotor |
-| 4 Assemblage lourd | 15 plaques renforcées, 10 rotors | Foreuse Mk2, Convoyeur Mk2, Cadre, Moteur |
-| 5 Projet Ascension | 10 cadres modulaires, 10 moteurs | Lancement ! |
+| Palier | À livrer |
+|---|---|
+| 1 Fondations | 60 plaques, 40 tiges |
+| 2 Électrification | 120 vis, 80 plaques |
+| 3 Câblage | 100 fils, 60 câbles, 60 béton |
+| 4 Assemblage | 20 plaques renforcées, 15 rotors, 100 béton |
+| 5 Âge de l'acier | 60 poutres, 60 tubes d'acier, 30 plaques renforcées |
+| 6 Mécanique avancée | 20 cadres modulaires, 15 moteurs, 30 cristaux |
+| 7 Pétrochimie | 120 plastique, 80 caoutchouc, 200 câbles |
+| 8 Projet Ascension | 10 ordinateurs, 40 moteurs, 40 cadres → lancement ! |
 
 Sauvegarde automatique dans le navigateur.
