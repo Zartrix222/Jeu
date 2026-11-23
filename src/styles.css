@@ -709,3 +709,39 @@ input[type='range']::-moz-range-thumb {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* ---------- notifications / confirmations ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + env(safe-area-inset-bottom, 0px) + 24px);
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: #241f33;
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px #000a;
+  font-size: 15px;
+}
+.ask p {
+  font-size: 16px;
+  margin: 6px 0 16px;
+}
+.ask-row {
+  display: flex;
+  gap: 10px;
+}
+.ask-row .btn {
+  flex: 1;
+}
+
+/* ---------- page claude.ai : la page hôte gère déjà les marges de sécurité ---------- */
+.in-artifact {
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+}
+.in-artifact .editor {
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}

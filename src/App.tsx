@@ -6,6 +6,8 @@ import { loadProjects, requestPersistence, saveProjects } from './lib/storage';
 import { makeThumb } from './lib/thumb';
 import { Editor } from './ui/Editor';
 import { Home } from './ui/Home';
+import { Dialogs } from './ui/Dialogs';
+import { notify } from './lib/host';
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => loadProjects());
@@ -21,7 +23,7 @@ export default function App() {
       try {
         saveProjects(next);
       } catch {
-        alert('Stockage du navigateur plein : exportez une sauvegarde et supprimez d’anciens projets.');
+        notify('Stockage du navigateur plein : exportez une sauvegarde et supprimez d’anciens projets.');
       }
       return next;
     });
@@ -57,6 +59,8 @@ export default function App() {
 
   if (editing) {
     return (
+      <>
+      <Dialogs />
       <Editor
         key={editing.id}
         project={editing}
@@ -66,9 +70,12 @@ export default function App() {
           else setEditing(null);
         }}
       />
+      </>
     );
   }
   return (
+    <>
+    <Dialogs />
     <Home
       projects={projects}
       onOpen={setEditing}
@@ -80,5 +87,6 @@ export default function App() {
       }}
       onReplaceAll={(list) => commit(() => list)}
     />
+    </>
   );
 }

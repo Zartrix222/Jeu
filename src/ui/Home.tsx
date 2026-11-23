@@ -3,6 +3,7 @@ import { TEMPLATES, templateSettings } from '../engine/templates';
 import type { Project } from '../engine/types';
 import { downloadBlob, makeBackup, restoreBackup } from '../lib/storage';
 import { makeThumb } from '../lib/thumb';
+import { IS_ARTIFACT, ask, notify } from '../lib/host';
 
 interface Props {
   projects: Project[];
@@ -70,9 +71,9 @@ export function Home({ projects, onOpen, onCreate, onDelete, onDuplicate, onRepl
     try {
       const r = await restoreBackup(f, projects);
       onReplaceAll(r.projects);
-      alert(`${r.added} projet(s) importé(s).`);
+      notify(`${r.added} projet(s) importé(s)`);
     } catch (e) {
-      alert((e as Error).message);
+      notify((e as Error).message);
     } finally {
       if (fileRef.current) fileRef.current.value = '';
     }
@@ -102,7 +103,7 @@ export function Home({ projects, onOpen, onCreate, onDelete, onDuplicate, onRepl
         <span>＋</span> Créer une animation
       </button>
 
-      {!standalone && (
+      {!standalone && !IS_ARTIFACT && (
         <div className="install">
           {installEvt ? (
             <>
@@ -142,7 +143,7 @@ export function Home({ projects, onOpen, onCreate, onDelete, onDuplicate, onRepl
                   <button type="button" onClick={() => exportOne(p)}>
                     Exporter le projet (.json)
                   </button>
-                  <button type="button" className="danger" onClick={() => confirm(`Supprimer « ${p.name} » ?`) && onDelete(p.id)}>
+                  <button type="button" className="danger" onClick={async () => (await ask(`Supprimer « ${p.name} » ?`, 'Supprimer')) && onDelete(p.id)}>
                     Supprimer
                   </button>
                 </div>

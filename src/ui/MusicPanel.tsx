@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { allMusic, deleteMusic, importMusicFile, type StoredMusic } from '../lib/storage';
 import { Group, Select, Slider } from './controls';
+import { ask, notify } from '../lib/host';
 import type { PanelProps } from './panels';
 
 export function MusicPanel(p: PanelProps & { duration: number | null; loading: string | null }) {
@@ -22,7 +23,7 @@ export function MusicPanel(p: PanelProps & { duration: number | null; loading: s
       p.set('audio', { ...a, musicId: m.id, musicName: m.name, mode: a.mode === 'none' ? 'bounce' : a.mode, startOffset: 0 });
       await refresh();
     } catch (e) {
-      alert('Import impossible : ' + (e as Error).message);
+      notify('Import impossible : ' + (e as Error).message);
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -121,7 +122,7 @@ export function MusicPanel(p: PanelProps & { duration: number | null; loading: s
                   type="button"
                   className="mini danger"
                   onClick={async () => {
-                    if (!confirm(`Supprimer « ${m.name} » de l’appareil ?`)) return;
+                    if (!(await ask(`Supprimer « ${m.name} » de l’appareil ?`, 'Supprimer'))) return;
                     await deleteMusic(m.id);
                     if (m.id === a.musicId) p.set('audio', { ...a, musicId: undefined, musicName: undefined, mode: 'none' });
                     void refresh();

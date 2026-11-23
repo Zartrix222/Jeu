@@ -4,6 +4,7 @@ import type { MusicAnalysis } from '../engine/analysis';
 import type { Settings } from '../engine/types';
 import { downloadBlob } from '../lib/storage';
 import { Select } from './controls';
+import { IS_ARTIFACT, notify } from '../lib/host';
 
 interface Props {
   settings: Settings;
@@ -33,7 +34,7 @@ export function ExportSheet({ settings, name, music, onChange, onClose }: Props)
 
   const start = async () => {
     if (settings.audio.mode !== 'none' && settings.audio.musicId && !music) {
-      alert('La musique est encore en cours de chargement, réessayez dans un instant.');
+      notify('La musique est encore en cours de chargement, réessayez dans un instant.');
       return;
     }
     setState('running');
@@ -68,6 +69,7 @@ export function ExportSheet({ settings, name, music, onChange, onClose }: Props)
 
   const file = () => (result ? new File([result.blob], `${fileName}.${result.ext}`, { type: result.mime }) : null);
   const canShare = (() => {
+    if (IS_ARTIFACT) return false;
     const f = file();
     try {
       return !!f && !!navigator.canShare?.({ files: [f] });
@@ -180,10 +182,12 @@ export function ExportSheet({ settings, name, music, onChange, onClose }: Props)
               </button>
             )}
             <button type="button" className={`btn wide ${canShare ? '' : 'primary'}`} onClick={() => downloadBlob(result.blob, `${fileName}.${result.ext}`)}>
-              ⬇ Télécharger le fichier
+              {IS_ARTIFACT ? '📲 Enregistrer la vidéo' : '⬇ Télécharger le fichier'}
             </button>
             <p className="hint">
-              {isIOS
+              {IS_ARTIFACT
+                ? 'Dans l’app Claude, le menu de partage s’ouvre : choisissez « Enregistrer la vidéo » (iPhone) ou votre galerie. Dans un navigateur, la vidéo va dans Téléchargements.'
+                : isIOS
                 ? 'iPhone : touchez « Enregistrer dans Photos », puis « Enregistrer la vidéo » dans le menu de partage.'
                 : 'Android : le fichier téléchargé apparaît dans « Téléchargements » et dans Google Photos › Bibliothèque › Download.'}
             </p>
